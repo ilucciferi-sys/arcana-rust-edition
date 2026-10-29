@@ -30,7 +30,7 @@ fn all_original_content_survives() {
         (128.0, 1400, 70, 32.0, 48.0, 12.0)
     );
     assert_eq!(s.name, "Солнечное копьё");
-    assert_eq!(c.spells().iter().filter(|s| s.executable()).count(), 1);
+    assert_eq!(c.spells().iter().filter(|s| s.executable()).count(), 5);
 }
 
 #[test]
@@ -71,6 +71,22 @@ fn cancellation_refunds_mana_and_retains_reserved_cooldown() {
         caster.request(&mut s, &c, "solar_spear", 111, CastPermission::default()),
         Err(Rejection::Cooldown)
     );
+}
+
+#[test]
+fn interrupted_preparation_is_refunded_once_when_saved() {
+    let (c, mut s, mut caster) = ready();
+    caster
+        .request(&mut s, &c, "solar_spear", 10, CastPermission::default())
+        .unwrap();
+    let snapshot = caster.saved_state(&s);
+    assert_eq!(snapshot.mana(), 160.0);
+    assert_eq!(snapshot.cooldown("solar_spear"), 1400);
+    assert_eq!(s.mana(), 32.0);
+    let loaded = MagicState::load_json(&snapshot.save_json().unwrap(), &c).unwrap();
+    assert_eq!(Caster::default().saved_state(&loaded).mana(), 160.0);
+    caster.advance(80).unwrap();
+    assert_eq!(caster.saved_state(&s).mana(), 32.0);
 }
 
 #[test]

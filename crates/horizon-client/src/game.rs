@@ -11847,6 +11847,8 @@ impl Game<'_> {
         self.save_game_metadata()
     }
     fn save_game_metadata(&mut self) -> Result<()> {
+        #[cfg(feature = "arcana")]
+        self.arcana_save_all()?;
         self.save_maps();
         self.save_random_sequences();
         self.save_fight();
@@ -12180,6 +12182,8 @@ impl Game<'_> {
             Vec::new()
         };
         let mut hud = horizon_client::spans::time("hud", || self.hud(size));
+        #[cfg(feature = "arcana")]
+        self.arcana_hud(&mut hud);
         // LevelLoadingScreen (Reason.OTHER) draws the title's panorama.
         let title = self.title.is_some()
             || self.loading_reason() == Some(horizon_client::level_loading::Reason::Other)
@@ -12237,6 +12241,10 @@ impl Game<'_> {
             self.bolt_instances()
         };
         let mut additive = Vec::new();
+        #[cfg(feature = "arcana")]
+        if !title {
+            self.arcana_starter_geometry(camera, &mut entities, &mut additive);
+        }
         if !title && self.dim == Dim::End {
             let mut dragon = Vec::new();
             self.dragon_geometry(camera, alpha, &mut dragon, &mut additive);
@@ -12537,9 +12545,15 @@ impl Game<'_> {
         #[cfg(feature = "arcana")]
         if self.screen == Screen::Playing && self.remote.is_some() && self.sleeping.is_none() {
             if key == KeyCode::KeyV {
-                self.arcana_send(arcana_core::network::Action::Cast {
-                    spell_id: "solar_spear".into(),
-                });
+                self.arcana_cast_selected();
+                return Ok(());
+            }
+            if key == KeyCode::KeyR {
+                self.arcana_next_spell();
+                return Ok(());
+            }
+            if key == KeyCode::F8 && std::env::var_os("ARCANA_DEMO_SCHOOL").is_some() {
+                self.arcana_send_demo();
                 return Ok(());
             }
             if key == KeyCode::KeyX {

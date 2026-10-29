@@ -1,10 +1,13 @@
 //! Opt-in migration pilot. The demo grant is operator-only. Rituals, PvP,
 //! world modification and legacy-save migration are not enabled in this slice.
+mod persistence;
+mod starters;
+mod visuals;
 use super::{Game, lan::LanHost};
 use arcana_core::{
     Catalog, DVec3, School,
     casting::{CastEvent, CastPermission, Caster, Phase},
-    network::{Action, MAX_PACKET, PROTOCOL, Replica, ServerEvent},
+    network::{Action, MAX_PACKET, MagicSnapshot, PROTOCOL, Replica, ServerEvent},
     solar::{self, Bounds, CombatWorld, SolarOutcome, Target},
     state::MagicState,
 };
@@ -30,6 +33,9 @@ use std::{
 pub(super) const ACTION_CHANNEL: &str = "arcana:action_v1";
 pub(super) const EVENT_CHANNEL: &str = "arcana:event_v1";
 pub(super) const DEMO_CHANNEL: &str = "arcana:demo_v1";
+pub(super) const BOOTSTRAP_CHANNEL: &str = "arcana:bootstrap_v1";
+pub(super) const SNAPSHOT_CHANNEL: &str = "arcana:snapshot_v1";
+pub(super) const STARTER_CHANNEL: &str = "arcana:starter_v1";
 fn catalog() -> &'static Catalog {
     static CATALOG: OnceLock<Catalog> = OnceLock::new();
     CATALOG.get_or_init(|| Catalog::bundled().expect("validated original Arcana catalog"))
@@ -40,6 +46,8 @@ struct Actor {
     caster: Caster,
     tick: Option<u64>,
     dimension: String,
+    dirty: bool,
+    bolts: Vec<starters::ActiveBolt>,
 }
 #[derive(Serialize, Deserialize)]
 struct Wire {
@@ -62,6 +70,12 @@ pub(super) struct Runtime {
     sequence: u64,
     replica: Option<Replica>,
     playback: Option<Playback>,
+    load_errors: HashMap<u128, String>,
+    snapshot: Option<MagicSnapshot>,
+    snapshot_received: Instant,
+    bootstrap_requested: bool,
+    starter_outbox: Vec<starters::StarterVisual>,
+    starter_views: HashMap<(u32, u64), starters::Viewed>,
 }
 impl Default for Runtime {
     fn default() -> Self {
@@ -75,6 +89,12 @@ impl Default for Runtime {
             sequence: 0,
             replica: None,
             playback: None,
+            load_errors: HashMap::new(),
+            snapshot: None,
+            snapshot_received: Instant::now(),
+            bootstrap_requested: false,
+            starter_outbox: Vec::new(),
+            starter_views: HashMap::new(),
         }
     }
 }
@@ -104,15 +124,52 @@ impl Game<'_> {
         let Some(uuid) = self.lan_acting_uuid else {
             return;
         };
-        let actor = self.arcana.actors.entry(uuid).or_default();
+        if !self.arcana_ensure_actor(uuid) {
+            return;
+        }
+        let actor = self.arcana.actors.get_mut(&uuid).unwrap();
         // This is an explicit development grant, never an awakening substitute.
-        if actor.state.school().is_none() {
+        let initial = actor.state.school().is_none();
+        if initial {
             actor.state.awaken(School::Fire, catalog());
         }
-        actor.state.set_level(5, catalog());
+        if actor.state.level() < 5 {
+            actor.state.set_level(5, catalog());
+        }
         actor.state.fill_mana();
         actor.state.clear_cooldowns();
+        if initial {
+            actor.state.select("solar_spear");
+        }
+        actor.dirty = true;
+        self.arcana_save_actor(uuid);
         log::info!("Arcana pilot: operator granted level 5 demo resources");
+    }
+    pub(super) fn arcana_bootstrap(&mut self) {
+        let Some(uuid) = self.lan_acting_uuid else {
+            return;
+        };
+        let school = match std::env::var("ARCANA_DEMO_SCHOOL").as_deref() {
+            Ok("fire") => School::Fire,
+            Ok("water") => School::Water,
+            Ok("earth") => School::Earth,
+            Ok("air") => School::Air,
+            _ => return,
+        };
+        if !self.arcana_ensure_actor(uuid) {
+            return;
+        }
+        let actor = self.arcana.actors.get_mut(&uuid).unwrap();
+        if actor.state.school().is_none() {
+            actor.state.awaken(school, catalog());
+            actor.state.set_level(5, catalog());
+            actor.state.fill_mana();
+            if school == School::Fire {
+                actor.state.select("solar_spear");
+            }
+            actor.dirty = true;
+            self.arcana_save_actor(uuid);
+        }
     }
     fn arcana_context(&self) -> Option<(DVec3, DVec3)> {
         let (eye, direction) = self.aim()?;
@@ -136,9 +193,25 @@ impl Game<'_> {
         let Some(uuid) = self.lan_acting_uuid else {
             return;
         };
-        let mut actor = self.arcana.actors.remove(&uuid).unwrap_or_default();
+        if !self.arcana_ensure_actor(uuid) {
+            return;
+        }
+        let mut actor = self.arcana.actors.remove(&uuid).unwrap();
         let tick = self.world.game_time.max(0) as u64;
+        if matches!(action, Action::Sync) {
+            if actor
+                .tick
+                .is_none_or(|last| tick.saturating_sub(last) >= 10)
+            {
+                self.arcana_send_snapshot(&actor, None);
+            }
+            self.arcana.actors.insert(uuid, actor);
+            return;
+        }
+        let previous = actor.state.clone();
+        let mut notice = None;
         match action {
+            Action::Sync => {}
             Action::Cast { spell_id } => {
                 let context = self.arcana_context();
                 let permission = CastPermission {
@@ -155,21 +228,56 @@ impl Game<'_> {
                     Ok(event) => {
                         actor.dimension = self.dim.id().into();
                         if let Some((start, direction)) = context {
-                            let end = start + direction * catalog().get(&spell_id).unwrap().range;
-                            self.arcana_emit(
-                                event,
-                                Some(SolarOutcome {
-                                    caster: u64::from(self.lan_acting.unwrap_or(0)),
+                            if spell_id != "solar_spear" {
+                                self.arcana_starter_visual(
+                                    event.cast_id,
+                                    &spell_id,
                                     start,
-                                    end,
-                                    impacted: false,
-                                    xp_awarded: 0,
-                                    beam_lifetime_ticks: 30,
-                                }),
-                            );
+                                    direction,
+                                    DVec3::ZERO,
+                                    0,
+                                    starters::VisualStage::Preparation,
+                                );
+                            } else {
+                                let end =
+                                    start + direction * catalog().get(&spell_id).unwrap().range;
+                                self.arcana_emit(
+                                    event,
+                                    Some(SolarOutcome {
+                                        caster: u64::from(self.lan_acting.unwrap_or(0)),
+                                        start,
+                                        end,
+                                        impacted: false,
+                                        xp_awarded: 0,
+                                        beam_lifetime_ticks: 30,
+                                    }),
+                                );
+                            }
                         }
                     }
-                    Err(reason) => log::info!("Arcana pilot cast rejected: {reason:?}"),
+                    Err(reason) => {
+                        log::info!("Arcana cast rejected: {reason:?}");
+                        notice = Some(
+                            match reason {
+                                arcana_core::casting::Rejection::Cooldown => {
+                                    "Заклинание перезаряжается"
+                                }
+                                arcana_core::casting::Rejection::NoMana => "Недостаточно маны",
+                                arcana_core::casting::Rejection::Busy => "Завершите текущий каст",
+                                arcana_core::casting::Rejection::WrongSchool => {
+                                    "Нужна другая школа магии"
+                                }
+                                arcana_core::casting::Rejection::Locked => {
+                                    "Заклинание ещё не открыто"
+                                }
+                                arcana_core::casting::Rejection::UnsupportedMechanic => {
+                                    "Это заклинание ещё переносится"
+                                }
+                                _ => "Сейчас применить заклинание нельзя",
+                            }
+                            .into(),
+                        );
+                    }
                 }
             }
             Action::Cancel => {
@@ -178,36 +286,65 @@ impl Game<'_> {
                 }
             }
             Action::Select { spell_id } => {
-                actor.state.select(&spell_id);
+                if catalog().get(&spell_id).is_some_and(|s| s.executable()) {
+                    actor.state.select(&spell_id);
+                }
             }
         }
+        actor.dirty |= actor.state != previous;
+        let changed = actor.dirty;
+        self.arcana_send_snapshot(&actor, notice);
         self.arcana.actors.insert(uuid, actor);
+        if changed {
+            self.arcana_save_actor(uuid);
+        }
     }
     pub(super) fn arcana_tick(&mut self, alive: bool) {
         let Some(uuid) = self.lan_acting_uuid else {
             return;
         };
-        let Some(mut actor) = self.arcana.actors.remove(&uuid) else {
+        if !self.arcana_ensure_actor(uuid) {
             return;
-        };
+        }
+        let mut actor = self.arcana.actors.remove(&uuid).unwrap();
         let tick = self.world.game_time.max(0) as u64;
         if actor.tick == Some(tick) {
             self.arcana.actors.insert(uuid, actor);
             return;
         }
+        let first_tick = actor.tick.is_none();
         actor.tick = Some(tick);
+        let mut checkpoint = false;
+        let previous = actor.state.clone();
         if !alive || !self.arcana_available() || actor.dimension != self.dim.id() {
+            for active in actor.bolts.drain(..) {
+                self.arcana_starter_visual(
+                    active.bolt.id,
+                    active.bolt.kind.spell_id(),
+                    active.bolt.position,
+                    DVec3::ZERO,
+                    DVec3::ZERO,
+                    active.bolt.age,
+                    starters::VisualStage::Expired,
+                );
+            }
             if let Some(e) = actor.caster.cancel(&mut actor.state, tick, true) {
                 self.arcana_emit(e, None);
+                checkpoint = true;
             }
+            actor.dimension = self.dim.id().into();
         } else {
             actor.state.tick(!actor.caster.idle());
             if let Ok(events) = actor.caster.advance(tick) {
                 for event in events {
+                    checkpoint = true;
                     let mut outcome = None;
                     if event.phase == Phase::Release
                         && let Some((start, direction)) = self.arcana_context()
                     {
+                        if self.arcana_release_starter(&mut actor, &event, start, direction) {
+                            continue;
+                        }
                         let caster = u64::from(self.lan_acting.unwrap_or(0));
                         let owner = self.acting_player_uuid();
                         let mut world = PilotWorld { game: self, owner };
@@ -237,8 +374,220 @@ impl Game<'_> {
                     self.arcana_emit(event, outcome);
                 }
             }
+            self.arcana_tick_starters(&mut actor, tick);
+        }
+        actor.dirty |= actor.state != previous || checkpoint;
+        if first_tick || tick.is_multiple_of(10) || checkpoint {
+            self.arcana_send_snapshot(&actor, None);
         }
         self.arcana.actors.insert(uuid, actor);
+        if checkpoint || tick.is_multiple_of(100) {
+            self.arcana_save_actor(uuid);
+        }
+    }
+    fn arcana_send_snapshot(&mut self, actor: &Actor, notice: Option<String>) {
+        let tick = self.world.game_time.max(0) as u64;
+        let snapshot = MagicSnapshot {
+            protocol: PROTOCOL,
+            server_tick: tick,
+            state: actor.state.clone(),
+            cast: actor.caster.status(tick),
+            notice,
+        };
+        if let Ok(data) = serde_json::to_vec(&snapshot) {
+            self.guest_packets.push(C::CustomPayload(CustomPayload {
+                channel: SNAPSHOT_CHANNEL.into(),
+                data,
+            }));
+        }
+    }
+    pub(super) fn arcana_receive_snapshot(&mut self, data: &[u8]) {
+        if let Ok(snapshot) = MagicSnapshot::decode(data, catalog()) {
+            self.arcana.snapshot = Some(snapshot);
+            self.arcana.snapshot_received = Instant::now();
+        }
+    }
+    pub(super) fn arcana_client_tick(&mut self) {
+        self.arcana
+            .starter_views
+            .retain(|_, v| v.received.elapsed().as_secs_f32() < 1.0);
+        if self.remote.is_none() || self.player.is_none() || self.remote_loading() {
+            return;
+        }
+        if !self.arcana.bootstrap_requested && std::env::var_os("ARCANA_DEMO_SCHOOL").is_some() {
+            self.send(S::CustomPayload(CustomPayload {
+                channel: BOOTSTRAP_CHANNEL.into(),
+                data: Vec::new(),
+            }));
+            self.arcana.bootstrap_requested = true;
+        }
+        if self.arcana.snapshot.is_none() && self.ticks.is_multiple_of(20) {
+            self.arcana_send(Action::Sync);
+        }
+    }
+    pub(super) fn arcana_cast_selected(&mut self) {
+        let selected = self
+            .arcana
+            .snapshot
+            .as_ref()
+            .and_then(|s| s.state.selected())
+            .unwrap_or("solar_spear")
+            .to_owned();
+        self.arcana_send(Action::Cast { spell_id: selected });
+    }
+    pub(super) fn arcana_next_spell(&mut self) {
+        let Some(snapshot) = &self.arcana.snapshot else {
+            return;
+        };
+        let available: Vec<_> = catalog()
+            .spells()
+            .iter()
+            .filter(|s| s.executable() && snapshot.state.equipped(&s.id))
+            .map(|s| s.id.as_str())
+            .collect();
+        if available.is_empty() {
+            return;
+        }
+        let index = available
+            .iter()
+            .position(|s| Some(*s) == snapshot.state.selected())
+            .map_or(0, |i| (i + 1) % available.len());
+        self.arcana_send(Action::Select {
+            spell_id: available[index].into(),
+        });
+    }
+    pub(super) fn arcana_status(&self) -> serde_json::Value {
+        serde_json::json!({"snapshot":self.arcana.snapshot,"blocked_players":self.arcana.load_errors.len()})
+    }
+    pub(super) fn arcana_hud(&self, hud: &mut horizon_client::hud::HudBatch) {
+        if self.screen != super::Screen::Playing || self.ui.hide_gui {
+            return;
+        }
+        let Some(snapshot) = &self.arcana.snapshot else {
+            return;
+        };
+        let Some(school) = snapshot.state.school() else {
+            if let Some(notice) = &snapshot.notice {
+                hud.text(
+                    &self.gui.atlas,
+                    notice,
+                    10.0,
+                    10.0,
+                    horizon_client::hud::rgba(255, 190, 120, 255),
+                    true,
+                );
+            }
+            return;
+        };
+        let school_name = match school {
+            School::Fire => "Огонь",
+            School::Water => "Вода",
+            School::Earth => "Земля",
+            School::Air => "Воздух",
+            School::Necromancy => "Некромантия",
+        };
+        let color = match school {
+            School::Fire => horizon_client::hud::rgba(255, 150, 55, 255),
+            School::Water => horizon_client::hud::rgba(75, 200, 245, 255),
+            School::Earth => horizon_client::hud::rgba(196, 169, 100, 255),
+            School::Air => horizon_client::hud::rgba(215, 224, 232, 255),
+            School::Necromancy => horizon_client::hud::rgba(70, 155, 90, 255),
+        };
+        let atlas = &self.gui.atlas;
+        let hud_start = hud.vertices.len();
+        let w = 260.0f32.min(hud.width - 16.0);
+        hud.fill(
+            atlas,
+            7.0,
+            7.0,
+            w,
+            65.0,
+            horizon_client::hud::rgba(10, 15, 23, 205),
+        );
+        hud.fill(atlas, 7.0, 7.0, 2.0, 65.0, color);
+        hud.text(
+            atlas,
+            &format!(
+                "{school_name} · ур. {} · XP {}",
+                snapshot.state.level(),
+                snapshot.state.xp()
+            ),
+            14.0,
+            12.0,
+            color,
+            true,
+        );
+        hud.fill(
+            atlas,
+            14.0,
+            25.0,
+            w - 14.0,
+            4.0,
+            horizon_client::hud::rgba(30, 45, 65, 255),
+        );
+        hud.fill(
+            atlas,
+            14.0,
+            25.0,
+            (w - 14.0) * (snapshot.state.mana() / snapshot.state.max_mana()) as f32,
+            4.0,
+            color,
+        );
+        let selected = snapshot.state.selected().unwrap_or("");
+        let name = catalog()
+            .get(selected)
+            .map_or("Выберите заклинание", |s| s.name.as_str());
+        hud.text(
+            atlas,
+            &format!(
+                "Мана {:.0}/{:.0} · {name}",
+                snapshot.state.mana(),
+                snapshot.state.max_mana()
+            ),
+            14.0,
+            33.0,
+            u32::MAX,
+            true,
+        );
+        let ticks = snapshot
+            .state
+            .cooldown(selected)
+            .saturating_sub((self.arcana.snapshot_received.elapsed().as_secs_f32() * 20.0) as u32);
+        let status = if let Some(cast) = &snapshot.cast {
+            let spell = catalog().get(&cast.spell_id);
+            let age = snapshot.server_tick.saturating_sub(cast.start_tick) as f32
+                + self.arcana.snapshot_received.elapsed().as_secs_f32() * 20.0;
+            if let Some(s) = spell
+                && age < s.cast_time as f32
+            {
+                format!("Подготовка {:.1} с", (s.cast_time as f32 - age) / 20.0)
+            } else {
+                "Восстановление".into()
+            }
+        } else if ticks > 0 {
+            format!("КД {:.1} с", ticks as f32 / 20.0)
+        } else {
+            "Готово".into()
+        };
+        hud.text(
+            atlas,
+            &format!("V — каст · R — выбор · {status}"),
+            14.0,
+            46.0,
+            horizon_client::hud::rgba(195, 207, 221, 255),
+            true,
+        );
+        if let Some(notice) = &snapshot.notice {
+            hud.text(
+                atlas,
+                notice,
+                14.0,
+                59.0,
+                horizon_client::hud::rgba(255, 190, 120, 255),
+                true,
+            );
+        }
+        hud.scale_since(hud_start, 7.0, 7.0, 0.65, 0.65);
     }
     fn arcana_emit(&mut self, cast: CastEvent, solar: Option<SolarOutcome>) {
         self.arcana.sequence += 1;
@@ -255,6 +604,22 @@ impl Game<'_> {
         });
     }
     pub(super) fn arcana_flush(&mut self, host: &LanHost) {
+        for visual in self.arcana.starter_outbox.drain(..) {
+            if let Ok(data) = serde_json::to_vec(&visual) {
+                let packet = C::CustomPayload(CustomPayload {
+                    channel: STARTER_CHANNEL.into(),
+                    data,
+                });
+                for guest in host
+                    .hub
+                    .guests
+                    .iter()
+                    .filter(|g| g.placed && g.dimension == visual.dimension)
+                {
+                    guest.send(&packet);
+                }
+            }
+        }
         for wire in self.arcana.outbox.drain(..) {
             if let Ok(data) = serde_json::to_vec(&wire) {
                 let packet = C::CustomPayload(CustomPayload {
@@ -294,6 +659,9 @@ impl Game<'_> {
         }
         let cast = &wire.event.cast;
         if cast.phase == Phase::Cancelled {
+            self.arcana
+                .starter_views
+                .remove(&(wire.owner, cast.cast_id));
             if self
                 .arcana
                 .playback
@@ -388,12 +756,7 @@ impl CombatWorld for PilotWorld<'_, '_> {
         self.game
             .mobs
             .iter()
-            .filter(|m| {
-                m.alive()
-                    && !allies.contains(&m.id)
-                    && m.extra.owner != Some(self.owner)
-                    && !m.invulnerable_flag
-            })
+            .filter(|m| m.alive() && !allies.contains(&m.id) && m.extra.owner != Some(self.owner))
             .filter_map(|m| {
                 let a = m.bounds();
                 let b = Bounds {

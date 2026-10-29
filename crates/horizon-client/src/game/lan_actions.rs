@@ -1422,10 +1422,10 @@ impl Game<'_> {
             S::ChatCommand(c) => self.guest_chat_command(host, conn, &c.command),
             #[cfg(feature = "arcana")]
             S::CustomPayload(p) if p.channel == super::arcana::ACTION_CHANNEL => {
-                if p.data.len() <= arcana_core::network::MAX_PACKET {
-                    if let Ok(action) = serde_json::from_slice(&p.data) {
-                        self.as_guest(host, conn, |g| g.arcana_action(action));
-                    }
+                if p.data.len() <= arcana_core::network::MAX_PACKET
+                    && let Ok(action) = serde_json::from_slice(&p.data)
+                {
+                    self.as_guest(host, conn, |g| g.arcana_action(action));
                 }
                 self.arcana_flush(host);
             }
@@ -1433,6 +1433,12 @@ impl Game<'_> {
             S::CustomPayload(p) if p.channel == super::arcana::DEMO_CHANNEL => {
                 if host.hub.guests[gi].permission >= 2 && p.data.is_empty() {
                     self.as_guest(host, conn, |g| g.arcana_grant_demo());
+                }
+            }
+            #[cfg(feature = "arcana")]
+            S::CustomPayload(p) if p.channel == super::arcana::BOOTSTRAP_CHANNEL => {
+                if host.hub.guests[gi].permission >= 2 && p.data.is_empty() {
+                    self.as_guest(host, conn, |g| g.arcana_bootstrap());
                 }
             }
             S::CustomPayload(p) if p.channel == horizon_protocol::quiet::CHANNEL => {

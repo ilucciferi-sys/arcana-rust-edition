@@ -1245,6 +1245,8 @@ impl Game<'_> {
     /// Save a guest when they leave or the world closes: an integrated
     /// server's owner with the world (`save_game`), anyone else in their file.
     pub(super) fn save_guest(&mut self, host: &LanHost, guest: &horizon_client::lan::guest::Guest) {
+        #[cfg(feature = "arcana")]
+        self.arcana_save_departing(guest.uuid);
         if host.owner.as_ref().is_some_and(|o| o.uuid == guest.uuid) {
             if guest.placed {
                 playerdata::store(guest, &mut self.level);
@@ -1665,6 +1667,8 @@ impl Game<'_> {
                             host.award_leave_game(guest.conn);
                         }
                         self.save_guest(&host, &guest);
+                        #[cfg(feature = "arcana")]
+                        self.arcana_player_left(guest.uuid, guest.conn, &guest.dimension);
                         host.models.remove(&guest.conn);
                         host.play.remove(&guest.conn);
                         self.guest_combat.remove(&guest.conn);

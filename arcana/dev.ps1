@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('test','build','prepare','audit','run')]
+    [ValidateSet('test','build','prepare','audit','run','play')]
     [string]$Task = 'test',
     [string]$ServerJar,
     [string]$MinecraftDir = (Join-Path $env:APPDATA '.minecraft')
@@ -21,6 +21,7 @@ try {
     switch ($Task) {
         'test' { & cargo test --manifest-path arcana/Cargo.toml; if ($LASTEXITCODE) { throw 'Tests failed' } }
         'build' { & cargo build --profile fast -p horizon-client --no-default-features --features arcana --bins; if ($LASTEXITCODE) { throw 'Build failed' } }
+        'play' { & .\target\fast\arcana-play.exe; if ($LASTEXITCODE) { throw 'Game exited with an error' } }
         'audit' {
             $pythonExe = Join-Path $sourcePath '.tools\python312\python.exe'
             if (-not (Test-Path -LiteralPath $pythonExe)) { $pythonExe = 'python' }

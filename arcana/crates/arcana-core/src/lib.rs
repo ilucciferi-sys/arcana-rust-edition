@@ -5,7 +5,9 @@ pub mod casting;
 pub mod catalog;
 pub mod network;
 pub mod solar;
+pub mod starter;
 pub mod state;
+pub mod storage;
 
 pub use catalog::{Catalog, School, Spell};
 pub use glam::DVec3;

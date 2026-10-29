@@ -1823,6 +1823,14 @@ impl Game<'_> {
     fn handle_packet(&mut self, packet: C) -> Result<()> {
         match packet {
             #[cfg(feature = "arcana")]
+            C::CustomPayload(p) if p.channel == super::arcana::STARTER_CHANNEL => {
+                self.arcana_receive_starter(&p.data);
+            }
+            #[cfg(feature = "arcana")]
+            C::CustomPayload(p) if p.channel == super::arcana::SNAPSHOT_CHANNEL => {
+                self.arcana_receive_snapshot(&p.data);
+            }
+            #[cfg(feature = "arcana")]
             C::CustomPayload(p) if p.channel == super::arcana::EVENT_CHANNEL => {
                 self.arcana_receive(&p.data);
             }
@@ -3748,6 +3756,8 @@ impl Game<'_> {
     /// One client tick while connected (Minecraft.tick with a ClientLevel).
     pub(super) fn tick_remote(&mut self) -> Result<()> {
         self.tick_remote_level()?;
+        #[cfg(feature = "arcana")]
+        self.arcana_client_tick();
         // Client mods tick on any server, single player's own included.
         self.native_tick();
         self.tell_native_now();

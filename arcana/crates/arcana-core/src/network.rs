@@ -1,4 +1,4 @@
-//! Transport-independent server events. Not wired to Horizon packets yet.
+//! Transport-independent server events and owner-only magic snapshots.
 use crate::{casting::CastEvent, solar::SolarOutcome};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeSet, VecDeque};
@@ -11,6 +11,33 @@ pub enum Action {
     Cast { spell_id: String },
     Select { spell_id: String },
     Cancel,
+    Sync,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MagicSnapshot {
+    pub protocol: u32,
+    pub server_tick: u64,
+    pub state: crate::state::MagicState,
+    pub cast: Option<CastEvent>,
+    pub notice: Option<String>,
+}
+impl MagicSnapshot {
+    pub fn decode(bytes: &[u8], catalog: &crate::Catalog) -> Result<Self, String> {
+        if bytes.len() > MAX_PACKET {
+            return Err("snapshot too large".into());
+        }
+        let mut value: Self = serde_json::from_slice(bytes).map_err(|e| e.to_string())?;
+        if value.protocol != PROTOCOL || value.notice.as_ref().is_some_and(|n| n.len() > 256) {
+            return Err("invalid snapshot".into());
+        }
+        value.state = crate::state::MagicState::load_json(
+            &value.state.save_json().map_err(|e| e.to_string())?,
+            catalog,
+        )?;
+        Ok(value)
+    }
 }
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ServerEvent {

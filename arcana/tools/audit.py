@@ -13,8 +13,9 @@ REVIEWED = {
     "MagicProgression", "ManaSystem", "MagicData", "CastingManager", "CastingState",
     "Spell", "FullSpell", "SpellCatalog", "SpellCombat", "SpellEngine", "FireSpells",
     "ReworkSpells", "MagicSchool", "RitualManager", "ArcanaConfig", "SparkSpell",
-    "WaterBoltSpell", "StoneBoltSpell", "WindGustSpell", "ActionPayload", "VisualPayload",
+    "WaterBoltSpell", "StoneBoltSpell", "WindGustSpell", "AirSpells", "ActionPayload", "VisualPayload",
 }
+PILOTS = {"solar_spear", "spark", "water_bolt", "stone_bolt", "wind_gust"}
 
 def sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -56,8 +57,8 @@ def generate(source):
         "verified_asset_copies": len(copies),
         "files": files,
         "spell_migration": [{"id": s["id"], "school": s["school"], "mechanic": s["mechanic"],
-                             "definition": "byte_identical", "logic": "solar_pilot" if s["id"] == "solar_spear" else "pending",
-                             "game_verification": "pending"} for s in spells],
+                             "definition": "byte_identical", "logic": "host_pilot" if s["id"] in PILOTS else "pending",
+                             "game_verification": "native_mob_pilot" if s["id"] in PILOTS else "pending"} for s in spells],
     }
 
 def main():

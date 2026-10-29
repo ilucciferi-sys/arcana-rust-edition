@@ -198,6 +198,8 @@ impl Game<'_> {
                 self.arcana_send_demo();
                 ok()
             }
+            #[cfg(feature = "arcana")]
+            "arcana-status" => Ok(Some(self.arcana_status())),
             "help" => Ok(Some(json!({ "commands": HELP
                 .iter()
                 .chain(super::station_control::HELP)
@@ -1190,6 +1192,7 @@ fn key_code(name: &str) -> Option<KeyCode> {
         "f3" => KeyCode::F3,
         "f4" => KeyCode::F4,
         "f5" => KeyCode::F5,
+        "f8" => KeyCode::F8,
         "f6" => KeyCode::F6,
         "f11" => KeyCode::F11,
         "slash" | "/" => KeyCode::Slash,

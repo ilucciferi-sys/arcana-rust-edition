@@ -71,7 +71,8 @@ pub fn execute(
     direction: DVec3,
     griefing: bool,
 ) -> Result<SolarOutcome, String> {
-    if !spell.executable()
+    if spell.id != "solar_spear"
+        || spell.mechanic != "SUN_SPEAR"
         || !hand.is_finite()
         || !direction.is_finite()
         || (direction.length_squared() - 1.0).abs() > 1e-5

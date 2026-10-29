@@ -71,6 +71,29 @@ impl Caster {
     pub fn idle(&self) -> bool {
         self.active.is_none()
     }
+    pub fn status(&self, tick: u64) -> Option<CastEvent> {
+        let a = self.active.as_ref()?;
+        let age = tick.saturating_sub(a.start);
+        let phase = if age < u64::from(a.spell.cast_time) {
+            Phase::Preparation
+        } else if age < u64::from(a.spell.cast_time + a.spell.channel_ticks()) {
+            Phase::Channeling
+        } else {
+            Phase::Recovery
+        };
+        self.event(tick, phase)
+    }
+    /// A cast is interrupted when the process stops. Persist its reservation
+    /// as refundable before release while keeping the cooldown intact.
+    pub fn saved_state(&self, state: &MagicState) -> MagicState {
+        let mut snapshot = state.clone();
+        if let Some(a) = &self.active
+            && !a.released
+        {
+            snapshot.restore_mana(a.spell.mana);
+        }
+        snapshot
+    }
     pub fn request(
         &mut self,
         state: &mut MagicState,

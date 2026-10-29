@@ -2027,7 +2027,7 @@
         "ru.arcana.registry.ArcanaRegistry",
         "ru.arcana.util.Ids"
       ],
-      "review": "inventory_only"
+      "review": "partial_manual_review"
     },
     {
       "path": "src/main/java/ru/arcana/common/magic/spell/runtime/ArcaneFireBlock.java",
@@ -4900,8 +4900,8 @@
       "school": "fire",
       "mechanic": "STARTER",
       "definition": "byte_identical",
-      "logic": "pending",
-      "game_verification": "pending"
+      "logic": "host_pilot",
+      "game_verification": "native_mob_pilot"
     },
     {
       "id": "ignition",
@@ -5004,8 +5004,8 @@
       "school": "fire",
       "mechanic": "SUN_SPEAR",
       "definition": "byte_identical",
-      "logic": "solar_pilot",
-      "game_verification": "pending"
+      "logic": "host_pilot",
+      "game_verification": "native_mob_pilot"
     },
     {
       "id": "fire_avatar",
@@ -5020,8 +5020,8 @@
       "school": "water",
       "mechanic": "STARTER",
       "definition": "byte_identical",
-      "logic": "pending",
-      "game_verification": "pending"
+      "logic": "host_pilot",
+      "game_verification": "native_mob_pilot"
     },
     {
       "id": "stream",
@@ -5140,8 +5140,8 @@
       "school": "earth",
       "mechanic": "STARTER",
       "definition": "byte_identical",
-      "logic": "pending",
-      "game_verification": "pending"
+      "logic": "host_pilot",
+      "game_verification": "native_mob_pilot"
     },
     {
       "id": "stone_skin",
@@ -5260,8 +5260,8 @@
       "school": "air",
       "mechanic": "STARTER",
       "definition": "byte_identical",
-      "logic": "pending",
-      "game_verification": "pending"
+      "logic": "host_pilot",
+      "game_verification": "native_mob_pilot"
     },
     {
       "id": "air_push",

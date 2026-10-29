@@ -1,9 +1,10 @@
-//! Arcana's first migration slice. All 76 definitions are preserved; only the
-//! solar spear has a world executor at this stage. Unsupported spells fail closed.
+//! Arcana migration core: catalog, casting, starter combat and elemental rites.
+//! Unsupported spells fail closed before spending resources.
 #![forbid(unsafe_code)]
 pub mod casting;
 pub mod catalog;
 pub mod network;
+pub mod ritual;
 pub mod solar;
 pub mod starter;
 pub mod state;

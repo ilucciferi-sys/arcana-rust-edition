@@ -34,9 +34,10 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 )
             }
             "--offscreen" => offscreen = true,
+            "--awakening" => school = Some("awakening".into()),
             "--help" | "-h" => {
                 println!(
-                    "Arcana: Rust Edition\narcana-play [--school fire|water|earth|air]\nБез параметров: выбор тестового профиля.\nV — каст, R — выбор, X — отмена, F8 — восстановить ресурсы."
+                    "Arcana: Rust Edition\narcana-play [--school fire|water|earth|air | --awakening]\nБез параметров: выбор профиля.\nПробуждение: пустые руки, Shift на центре построенного ритуала.\nV — каст, R — выбор, X — отмена. F8 — ресурсы в демонстрационных профилях."
                 );
                 return Ok(());
             }
@@ -44,7 +45,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     let school = school.unwrap_or_else(choose_school);
-    if !["fire", "water", "earth", "air"].contains(&school.as_str()) {
+    if !["fire", "water", "earth", "air", "awakening"].contains(&school.as_str()) {
         return Err("Неизвестная школа магии".into());
     }
     let executable = env::current_exe()?;
@@ -125,7 +126,10 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         .env("HORIZON_LAUNCHER_NO_SELF_UPDATE", "1")
         .env("HORIZON_NO_AUDIO", "1")
         .env("HORIZON_NO_DISCORD", "1")
-        .env("ARCANA_DEMO_SCHOOL", &school);
+        .env_remove("ARCANA_DEMO_SCHOOL");
+    if school != "awakening" {
+        command.env("ARCANA_DEMO_SCHOOL", &school);
+    }
     if offscreen {
         command.arg("--offscreen");
     }
@@ -140,10 +144,17 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             "fire" => "Огонь",
             "water" => "Вода",
             "earth" => "Земля",
+            "awakening" => "Пробуждение",
             _ => "Воздух",
         }
     );
-    println!("V — заклинание, R — выбор, X — отмена, F8 — восстановить ману и перезарядки.");
+    if school == "awakening" {
+        println!(
+            "Постройте ритуал. С пустыми руками удерживайте Shift на его центре одну секунду.\nПосле пробуждения: V — заклинание, R — выбор, X — отмена подготовки."
+        );
+    } else {
+        println!("V — заклинание, R — выбор, X — отмена, F8 — восстановить ману и перезарядки.");
+    }
     println!("Мир и прогресс: {}", profile.display());
     let status = command.status()?;
     drop(lock);
@@ -154,7 +165,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
 }
 fn choose_school() -> String {
     println!(
-        "Arcana: Rust Edition\n\nВыберите отдельный тестовый профиль:\n1 — Огонь\n2 — Вода\n3 — Земля\n4 — Воздух"
+        "Arcana: Rust Edition\n\nВыберите отдельный профиль:\n1 — Огонь (демонстрация)\n2 — Вода (демонстрация)\n3 — Земля (демонстрация)\n4 — Воздух (демонстрация)\n5 — Пробуждение (получите магию ритуалом)"
     );
     print!("Номер профиля [1]: ");
     let _ = io::stdout().flush();
@@ -164,6 +175,7 @@ fn choose_school() -> String {
         "2" => "water",
         "3" => "earth",
         "4" => "air",
+        "5" => "awakening",
         _ => "fire",
     }
     .into()

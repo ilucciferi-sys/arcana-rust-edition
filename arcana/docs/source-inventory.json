@@ -20,6 +20,16 @@
     "necromancy": 16
   },
   "animation_bindings": 85,
+  "elemental_rituals": {
+    "schools": [
+      "fire",
+      "water",
+      "earth",
+      "air"
+    ],
+    "logic": "host_pilot",
+    "necromancy": "pending_soul_item_and_army"
+  },
   "verified_asset_copies": 317,
   "files": [
     {
@@ -997,7 +1007,7 @@
         "net.minecraft.world.phys.Vec3",
         "ru.arcana.common.magic.school.MagicSchool"
       ],
-      "review": "inventory_only"
+      "review": "partial_manual_review"
     },
     {
       "path": "src/main/java/ru/arcana/client/render/SpectralAudio.java",
@@ -1683,7 +1693,7 @@
         "net.minecraft.world.level.block.Block",
         "ru.arcana.common.magic.school.MagicSchool"
       ],
-      "review": "inventory_only"
+      "review": "partial_manual_review"
     },
     {
       "path": "src/main/java/ru/arcana/common/magic/ritual/RitualActivation.java",
@@ -1696,7 +1706,7 @@
         "net.minecraft.world.level.Level",
         "ru.arcana.common.magic.school.MagicSchool"
       ],
-      "review": "inventory_only"
+      "review": "partial_manual_review"
     },
     {
       "path": "src/main/java/ru/arcana/common/magic/ritual/RitualManager.java",
@@ -1734,7 +1744,7 @@
         "net.minecraft.world.level.block.Block",
         "net.minecraft.world.level.block.state.BlockState"
       ],
-      "review": "inventory_only"
+      "review": "partial_manual_review"
     },
     {
       "path": "src/main/java/ru/arcana/common/magic/ritual/Rituals.java",
@@ -1748,7 +1758,7 @@
         "net.minecraft.world.level.block.CampfireBlock",
         "ru.arcana.common.magic.school.MagicSchool"
       ],
-      "review": "inventory_only"
+      "review": "partial_manual_review"
     },
     {
       "path": "src/main/java/ru/arcana/common/magic/school/MagicSchool.java",

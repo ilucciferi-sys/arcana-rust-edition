@@ -1823,6 +1823,10 @@ impl Game<'_> {
     fn handle_packet(&mut self, packet: C) -> Result<()> {
         match packet {
             #[cfg(feature = "arcana")]
+            C::CustomPayload(p) if p.channel == super::arcana::RITUAL_CHANNEL => {
+                self.arcana_receive_ritual(&p.data);
+            }
+            #[cfg(feature = "arcana")]
             C::CustomPayload(p) if p.channel == super::arcana::STARTER_CHANNEL => {
                 self.arcana_receive_starter(&p.data);
             }

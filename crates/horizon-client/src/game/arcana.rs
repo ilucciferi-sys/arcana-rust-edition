@@ -1,6 +1,7 @@
-//! Opt-in migration pilot. The demo grant is operator-only. Rituals, PvP,
-//! world modification and legacy-save migration are not enabled in this slice.
+//! Opt-in migration. Elemental awakening and combat run on the server.
+//! PvP, necromantic awakening and legacy-save migration remain unavailable.
 mod persistence;
+mod rituals;
 mod starters;
 mod visuals;
 use super::{Game, lan::LanHost};
@@ -36,6 +37,7 @@ pub(super) const DEMO_CHANNEL: &str = "arcana:demo_v1";
 pub(super) const BOOTSTRAP_CHANNEL: &str = "arcana:bootstrap_v1";
 pub(super) const SNAPSHOT_CHANNEL: &str = "arcana:snapshot_v1";
 pub(super) const STARTER_CHANNEL: &str = "arcana:starter_v1";
+pub(super) const RITUAL_CHANNEL: &str = rituals::CHANNEL;
 fn catalog() -> &'static Catalog {
     static CATALOG: OnceLock<Catalog> = OnceLock::new();
     CATALOG.get_or_init(|| Catalog::bundled().expect("validated original Arcana catalog"))
@@ -48,6 +50,8 @@ struct Actor {
     dimension: String,
     dirty: bool,
     bolts: Vec<starters::ActiveBolt>,
+    ritual: arcana_core::ritual::Tracker,
+    notice: Option<(String, u64)>,
 }
 #[derive(Serialize, Deserialize)]
 struct Wire {
@@ -76,6 +80,8 @@ pub(super) struct Runtime {
     bootstrap_requested: bool,
     starter_outbox: Vec<starters::StarterVisual>,
     starter_views: HashMap<(u32, u64), starters::Viewed>,
+    ritual_outbox: Vec<rituals::Visual>,
+    ritual_views: HashMap<u32, rituals::Viewed>,
 }
 impl Default for Runtime {
     fn default() -> Self {
@@ -95,6 +101,8 @@ impl Default for Runtime {
             bootstrap_requested: false,
             starter_outbox: Vec::new(),
             starter_views: HashMap::new(),
+            ritual_outbox: Vec::new(),
+            ritual_views: HashMap::new(),
         }
     }
 }
@@ -216,7 +224,7 @@ impl Game<'_> {
                 let context = self.arcana_context();
                 let permission = CastPermission {
                     available: self.arcana_available(),
-                    ritual_active: false,
+                    ritual_active: actor.ritual.active().is_some(),
                     direction_valid: context.is_some_and(|(_, d)| {
                         d.is_finite() && (d.length_squared() - 1.0).abs() < 1e-5
                     }),
@@ -316,6 +324,7 @@ impl Game<'_> {
         actor.tick = Some(tick);
         let mut checkpoint = false;
         let previous = actor.state.clone();
+        checkpoint |= self.arcana_tick_ritual(&mut actor, alive);
         if !alive || !self.arcana_available() || actor.dimension != self.dim.id() {
             for active in actor.bolts.drain(..) {
                 self.arcana_starter_visual(
@@ -392,7 +401,14 @@ impl Game<'_> {
             server_tick: tick,
             state: actor.state.clone(),
             cast: actor.caster.status(tick),
-            notice,
+            ritual: actor.ritual.active().cloned(),
+            notice: notice.or_else(|| {
+                actor
+                    .notice
+                    .as_ref()
+                    .filter(|(_, until)| tick <= *until)
+                    .map(|(text, _)| text.clone())
+            }),
         };
         if let Ok(data) = serde_json::to_vec(&snapshot) {
             self.guest_packets.push(C::CustomPayload(CustomPayload {
@@ -408,6 +424,9 @@ impl Game<'_> {
         }
     }
     pub(super) fn arcana_client_tick(&mut self) {
+        self.arcana.ritual_views.retain(|_, v| {
+            v.received.elapsed().as_secs_f32() < if v.message.finished { 1.5 } else { 1.0 }
+        });
         self.arcana
             .starter_views
             .retain(|_, v| v.received.elapsed().as_secs_f32() < 1.0);
@@ -457,7 +476,7 @@ impl Game<'_> {
         });
     }
     pub(super) fn arcana_status(&self) -> serde_json::Value {
-        serde_json::json!({"snapshot":self.arcana.snapshot,"blocked_players":self.arcana.load_errors.len()})
+        serde_json::json!({"snapshot":self.arcana.snapshot,"blocked_players":self.arcana.load_errors.len(),"ritual_visuals":self.arcana.ritual_views.len()})
     }
     pub(super) fn arcana_hud(&self, hud: &mut horizon_client::hud::HudBatch) {
         if self.screen != super::Screen::Playing || self.ui.hide_gui {
@@ -467,16 +486,7 @@ impl Game<'_> {
             return;
         };
         let Some(school) = snapshot.state.school() else {
-            if let Some(notice) = &snapshot.notice {
-                hud.text(
-                    &self.gui.atlas,
-                    notice,
-                    10.0,
-                    10.0,
-                    horizon_client::hud::rgba(255, 190, 120, 255),
-                    true,
-                );
-            }
+            self.arcana_ritual_hud(hud, snapshot);
             return;
         };
         let school_name = match school {
@@ -604,6 +614,22 @@ impl Game<'_> {
         });
     }
     pub(super) fn arcana_flush(&mut self, host: &LanHost) {
+        for visual in self.arcana.ritual_outbox.drain(..) {
+            if let Ok(data) = serde_json::to_vec(&visual) {
+                let packet = C::CustomPayload(CustomPayload {
+                    channel: rituals::CHANNEL.into(),
+                    data,
+                });
+                for guest in host
+                    .hub
+                    .guests
+                    .iter()
+                    .filter(|g| g.placed && g.dimension == visual.rite.dimension)
+                {
+                    guest.send(&packet);
+                }
+            }
+        }
         for visual in self.arcana.starter_outbox.drain(..) {
             if let Ok(data) = serde_json::to_vec(&visual) {
                 let packet = C::CustomPayload(CustomPayload {

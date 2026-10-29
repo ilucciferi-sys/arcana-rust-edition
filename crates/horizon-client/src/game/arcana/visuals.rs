@@ -94,6 +94,169 @@ fn ribbon(out: &mut Vec<Vertex>, a: Vec3, b: Vec3, width: f32, texture: Rect, co
     );
 }
 impl Game<'_> {
+    pub(in crate::game) fn arcana_ritual_geometry(
+        &self,
+        camera: DVec3,
+        solid: &mut Vec<Vertex>,
+        glow: &mut Vec<Vertex>,
+    ) {
+        use arcana_core::School;
+        let Some(texture) = self.gui.atlas.sprites.get("block/white_concrete").copied() else {
+            return;
+        };
+        let rock = self
+            .gui
+            .atlas
+            .sprites
+            .get("block/deepslate")
+            .copied()
+            .unwrap_or(texture);
+        let reduced = std::env::var_os("ARCANA_REDUCED_EFFECTS").is_some();
+        for view in self.arcana.ritual_views.values() {
+            let m = &view.message;
+            if m.rite.dimension != self.dim.id() {
+                continue;
+            }
+            let at = (DVec3::from_array(m.rite.center.map(f64::from)) + DVec3::new(0.5, 1.04, 0.5)
+                - camera)
+                .as_vec3();
+            if at.length_squared() > 96.0 * 96.0 {
+                continue;
+            }
+            let elapsed = view.received.elapsed().as_secs_f32();
+            let progress = ((m.rite.progress as f32 + elapsed.min(0.5) * 20.0)
+                / m.rite.duration as f32)
+                .min(1.0);
+            let fade = if m.finished {
+                (1.0 - elapsed / 1.5).max(0.0)
+            } else {
+                (progress * 5.0).min(1.0)
+            };
+            let rise = ((progress - 0.2) / 0.8).clamp(0.0, 1.0);
+            let time = (m.rite.progress as f32 / 20.0 + elapsed) * 1.4;
+            let alpha = (110.0 * fade * if reduced { 0.5 } else { 1.0 }) as u8;
+            let rgb = match m.rite.school {
+                School::Fire => [255, 100, 25],
+                School::Water => [35, 165, 245],
+                School::Earth => [195, 150, 75],
+                _ => [200, 225, 235],
+            };
+            let color = rgba(rgb[0], rgb[1], rgb[2], alpha);
+            for (radius, sign) in [(2.1, 1.0), (1.25, -1.0)] {
+                ring(
+                    glow,
+                    at,
+                    Vec3::X,
+                    Vec3::Z,
+                    radius,
+                    0.016,
+                    texture,
+                    color,
+                    time * sign,
+                );
+                for i in 0..12 {
+                    let a = i as f32 / 12.0 * TAU + time * 0.15 * sign;
+                    let radial = Vec3::new(a.cos(), 0.0, a.sin());
+                    ribbon(
+                        glow,
+                        at + radial * radius,
+                        at + radial * (radius - 0.16) + Vec3::Y * 0.02,
+                        0.025,
+                        texture,
+                        color,
+                    );
+                }
+            }
+            for i in 0..3 {
+                ring(
+                    glow,
+                    at + Vec3::Y * (0.6 + rise * (i as f32 + 1.0)),
+                    Vec3::X,
+                    Vec3::Z,
+                    0.65 + rise * (0.25 + i as f32 * 0.2),
+                    0.009,
+                    texture,
+                    color,
+                    time,
+                );
+            }
+            for i in 0..12 {
+                let a = i as f32 / 12.0 * TAU
+                    + time
+                        * if m.rite.school == School::Air {
+                            1.8
+                        } else {
+                            0.65
+                        };
+                let radial = Vec3::new(a.cos(), 0.0, a.sin());
+                let height = (time * 0.5 + i as f32 * 0.19).fract() * (1.0 + rise * 3.0);
+                let p = at + radial * (1.3 + 0.3 * (time + i as f32).sin()) + Vec3::Y * height;
+                match m.rite.school {
+                    School::Earth => cube(
+                        solid,
+                        p,
+                        (0.07 + rise * 0.08) * fade,
+                        Quat::from_rotation_y(a),
+                        rock,
+                        rgba(175, 155, 120, 255),
+                    ),
+                    School::Water => {
+                        ring(glow, p, radial, Vec3::Y, 0.06, 0.012, texture, color, time);
+                        ribbon(
+                            glow,
+                            p,
+                            p - radial * 0.18 - Vec3::Y * 0.1,
+                            0.025,
+                            texture,
+                            color,
+                        );
+                    }
+                    School::Fire => ribbon(
+                        glow,
+                        p,
+                        p + Vec3::Y * (0.2 + rise * 0.5) - radial * 0.18,
+                        0.04,
+                        texture,
+                        color,
+                    ),
+                    _ => ribbon(
+                        glow,
+                        p,
+                        p - Vec3::new(-a.sin(), -0.1, a.cos()) * 0.65,
+                        0.018,
+                        texture,
+                        color,
+                    ),
+                }
+            }
+            if progress > 0.7 {
+                let reach = (progress - 0.7) / 0.3 * 7.0;
+                ribbon(
+                    glow,
+                    at + Vec3::Y * 0.1,
+                    at + Vec3::Y * reach,
+                    if reduced { 0.025 } else { 0.05 },
+                    texture,
+                    color,
+                );
+            }
+            if m.finished {
+                for i in 0..3 {
+                    ring(
+                        glow,
+                        at + Vec3::Y * (0.2 + i as f32 * 0.4),
+                        Vec3::X,
+                        Vec3::Z,
+                        0.5 + elapsed * (2.0 + i as f32),
+                        0.025 * fade,
+                        texture,
+                        color,
+                        time,
+                    );
+                }
+            }
+        }
+    }
     pub(in crate::game) fn arcana_starter_geometry(
         &self,
         camera: DVec3,

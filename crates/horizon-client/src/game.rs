@@ -12244,6 +12244,7 @@ impl Game<'_> {
         #[cfg(feature = "arcana")]
         if !title {
             self.arcana_starter_geometry(camera, &mut entities, &mut additive);
+            self.arcana_ritual_geometry(camera, &mut entities, &mut additive);
         }
         if !title && self.dim == Dim::End {
             let mut dragon = Vec::new();

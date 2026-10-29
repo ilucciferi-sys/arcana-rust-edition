@@ -71,9 +71,18 @@ impl Game<'_> {
         }
     }
     pub(in crate::game) fn arcana_player_left(&mut self, uuid: u128, conn: u32, dimension: &str) {
+        self.arcana.load_errors.remove(&uuid);
         let Some(mut actor) = self.arcana.actors.remove(&uuid) else {
             return;
         };
+        if let Some(arcana_core::ritual::Event::Cancelled(rite)) = actor.ritual.interrupt() {
+            self.arcana.ritual_outbox.push(super::rituals::Visual {
+                owner: conn,
+                rite,
+                finished: false,
+                cancelled: true,
+            });
+        }
         let tick = (self.world.game_time.max(0) as u64).max(actor.tick.unwrap_or(0));
         if let Some(cast) = actor.caster.cancel(&mut actor.state, tick, true) {
             self.arcana.sequence += 1;

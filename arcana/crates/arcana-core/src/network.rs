@@ -22,6 +22,8 @@ pub struct MagicSnapshot {
     pub state: crate::state::MagicState,
     pub cast: Option<CastEvent>,
     pub notice: Option<String>,
+    #[serde(default)]
+    pub ritual: Option<crate::ritual::Activation>,
 }
 impl MagicSnapshot {
     pub fn decode(bytes: &[u8], catalog: &crate::Catalog) -> Result<Self, String> {
@@ -29,7 +31,10 @@ impl MagicSnapshot {
             return Err("snapshot too large".into());
         }
         let mut value: Self = serde_json::from_slice(bytes).map_err(|e| e.to_string())?;
-        if value.protocol != PROTOCOL || value.notice.as_ref().is_some_and(|n| n.len() > 256) {
+        if value.protocol != PROTOCOL
+            || value.notice.as_ref().is_some_and(|n| n.len() > 256)
+            || value.ritual.as_ref().is_some_and(|r| !r.valid())
+        {
             return Err("invalid snapshot".into());
         }
         value.state = crate::state::MagicState::load_json(

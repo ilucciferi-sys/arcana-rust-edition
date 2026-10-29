@@ -14,6 +14,7 @@ REVIEWED = {
     "Spell", "FullSpell", "SpellCatalog", "SpellCombat", "SpellEngine", "FireSpells",
     "ReworkSpells", "MagicSchool", "RitualManager", "ArcanaConfig", "SparkSpell",
     "WaterBoltSpell", "StoneBoltSpell", "WindGustSpell", "AirSpells", "ActionPayload", "VisualPayload",
+    "Rituals", "RitualPattern", "RitualActivation", "AwakeningRitual", "RitualEffectRenderer",
 }
 PILOTS = {"solar_spear", "spark", "water_bolt", "stone_bolt", "wind_gust"}
 
@@ -54,6 +55,8 @@ def generate(source):
         "counts": dict(Counter(Path(f["path"]).suffix for f in files)),
         "schools": dict(Counter(s["school"] for s in spells)),
         "animation_bindings": len(animations["bindings"]),
+        "elemental_rituals": {"schools": ["fire", "water", "earth", "air"],
+                              "logic": "host_pilot", "necromancy": "pending_soul_item_and_army"},
         "verified_asset_copies": len(copies),
         "files": files,
         "spell_migration": [{"id": s["id"], "school": s["school"], "mechanic": s["mechanic"],

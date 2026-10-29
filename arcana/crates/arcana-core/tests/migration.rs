@@ -30,7 +30,7 @@ fn all_original_content_survives() {
         (128.0, 1400, 70, 32.0, 48.0, 12.0)
     );
     assert_eq!(s.name, "Солнечное копьё");
-    assert_eq!(c.spells().iter().filter(|s| s.executable()).count(), 7);
+    assert_eq!(c.spells().iter().filter(|s| s.executable()).count(), 8);
 }
 
 #[test]
@@ -126,11 +126,11 @@ fn a_large_clock_jump_does_not_drop_the_release() {
 fn unsupported_mechanics_do_not_consume_resources() {
     let (c, mut s, mut caster) = ready();
     assert_eq!(
-        caster.request(&mut s, &c, "fireball", 0, CastPermission::default()),
+        caster.request(&mut s, &c, "flame_wall", 0, CastPermission::default()),
         Err(Rejection::UnsupportedMechanic)
     );
     assert_eq!(s.mana(), 160.0);
-    assert_eq!(s.cooldown("fireball"), 0);
+    assert_eq!(s.cooldown("flame_wall"), 0);
 }
 
 #[test]

@@ -720,7 +720,7 @@
         "ru.arcana.common.magic.spell.entity.ElementProjectile",
         "ru.arcana.util.Ids"
       ],
-      "review": "inventory_only"
+      "review": "partial_manual_review"
     },
     {
       "path": "src/main/java/ru/arcana/client/render/EnergyRenderTypes.java",
@@ -1844,7 +1844,7 @@
         "ru.arcana.network.packet.VisualPayload",
         "ru.arcana.registry.ArcanaRegistry"
       ],
-      "review": "inventory_only"
+      "review": "partial_manual_review"
     },
     {
       "path": "src/main/java/ru/arcana/common/magic/spell/entity/MagicEffectEntity.java",
@@ -4934,8 +4934,8 @@
       "school": "fire",
       "mechanic": "PROJECTILE",
       "definition": "byte_identical",
-      "logic": "pending",
-      "game_verification": "pending"
+      "logic": "host_pilot",
+      "game_verification": "native_mob_pilot"
     },
     {
       "id": "flame_wall",

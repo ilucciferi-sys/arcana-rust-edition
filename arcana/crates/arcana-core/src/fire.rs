@@ -22,7 +22,7 @@ pub struct Ignition {
     pub xp: u32,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct Push {
+pub struct AreaOutcome {
     pub affected: u32,
     pub damaged: u32,
     pub pushed: u32,
@@ -48,7 +48,7 @@ fn valid(
     Ok(())
 }
 fn fire_hit(
-    world: &mut impl FireWorld,
+    world: &mut impl StarterWorld,
     caster: u64,
     target: Target,
     power: f64,
@@ -65,6 +65,49 @@ fn fire_hit(
         world.thaw(target.id, 0.08);
     }
     (damaged, pushed)
+}
+
+/// Ordinary FullSpell PROJECTILE impact, not ElementProjectile.empowered or
+/// ReworkSpells.blast: a fixed three-block sphere, flat damage and one award.
+pub fn fireball_impact(
+    world: &mut impl StarterWorld,
+    caster: u64,
+    at: DVec3,
+    power: f64,
+) -> Result<AreaOutcome, String> {
+    if !at.is_finite() || !power.is_finite() || power < 0.0 {
+        return Err("invalid fireball impact".into());
+    }
+    let query = Bounds {
+        min: at - DVec3::splat(3.0),
+        max: at + DVec3::splat(3.0),
+    };
+    let mut result = AreaOutcome {
+        affected: 0,
+        damaged: 0,
+        pushed: 0,
+        xp: 0,
+    };
+    for target in world.hostile_targets(caster, query) {
+        if target.position.distance_squared(at) > 9.0
+            || !matches!(
+                world.clip_blocks(at + DVec3::Y * 0.2, target.bounds.center()),
+                Ok(None)
+            )
+        {
+            continue;
+        }
+        let impulse = (target.position - at).normalize_or_zero() * 0.7 + DVec3::Y * 0.25;
+        let (damaged, pushed) = fire_hit(world, caster, target, power, Some(impulse));
+        result.affected += 1;
+        result.damaged += u32::from(damaged);
+        result.pushed += u32::from(pushed);
+    }
+    world.ignite_patch(at, 2.0);
+    if result.damaged > 0 || result.pushed > 0 {
+        result.xp = 4;
+    }
+    Ok(result)
 }
 pub fn ignite(
     world: &mut impl FireWorld,
@@ -115,14 +158,14 @@ pub fn push(
     position: DVec3,
     eye: DVec3,
     direction: DVec3,
-) -> Result<Push, String> {
+) -> Result<AreaOutcome, String> {
     valid(spell, "fire_push", "PUSH", position, eye, direction)?;
     let radius = spell.radius;
     let query = Bounds {
         min: position - DVec3::splat(radius),
         max: position + DVec3::splat(radius),
     };
-    let mut result = Push {
+    let mut result = AreaOutcome {
         affected: 0,
         damaged: 0,
         pushed: 0,

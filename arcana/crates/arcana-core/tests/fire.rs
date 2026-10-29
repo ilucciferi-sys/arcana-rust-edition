@@ -18,6 +18,8 @@ struct Arena {
     impulses: Vec<(u64, DVec3)>,
     thaws: Vec<(u64, f32)>,
     surfaces: u32,
+    patches: Vec<(DVec3, f64)>,
+    placed_fires: u32,
 }
 impl CombatWorld for Arena {
     fn clip_blocks(&self, a: DVec3, b: DVec3) -> Result<Option<DVec3>, String> {
@@ -82,6 +84,10 @@ impl StarterWorld for Arena {
     fn discard_projectile(&mut self, _: u64) {
         panic!()
     }
+    fn ignite_patch(&mut self, at: DVec3, radius: f64) -> u32 {
+        self.patches.push((at, radius));
+        self.placed_fires
+    }
 }
 impl FireWorld for Arena {
     fn ignite_ray(&mut self, _: DVec3, _: DVec3, _: f64) -> bool {
@@ -112,7 +118,7 @@ fn ignition(world: &mut Arena) -> Ignition {
     )
     .unwrap()
 }
-fn shove(world: &mut Arena) -> Push {
+fn shove(world: &mut Arena) -> AreaOutcome {
     push(
         world,
         1,
@@ -122,6 +128,184 @@ fn shove(world: &mut Arena) -> Push {
         DVec3::X,
     )
     .unwrap()
+}
+
+fn fireball() -> arcana_core::starter::Bolt {
+    arcana_core::starter::Bolt::new(
+        42,
+        Catalog::bundled().unwrap().get("fireball").unwrap(),
+        DVec3::Y,
+        DVec3::X,
+    )
+    .unwrap()
+}
+#[test]
+fn fireball_blast_uses_three_blocks_flat_six_damage_and_visibility() {
+    let mut w = Arena {
+        targets: vec![
+            victim(1, 1.0, 0.0),
+            victim(2, 2.99, 0.0),
+            victim(3, 3.01, 0.0),
+            victim(4, 2.0, 0.0),
+        ],
+        hidden: HashSet::from([4]),
+        ..Default::default()
+    };
+    w.burns.insert(1, 240);
+    let r = fireball_impact(&mut w, 99, DVec3::ZERO, 6.0).unwrap();
+    assert_eq!((r.affected, r.damaged, r.pushed, r.xp), (2, 2, 2, 4));
+    assert_eq!(w.hits, vec![(1, 6.0), (2, 6.0)]);
+    assert_eq!(w.burns, HashMap::from([(1, 240), (2, 80)]));
+    assert_eq!(
+        w.impulses,
+        vec![
+            (1, DVec3::new(0.7, 0.25, 0.0)),
+            (2, DVec3::new(0.7, 0.25, 0.0))
+        ]
+    );
+    assert_eq!(w.thaws, vec![(1, 0.08), (2, 0.08)]);
+}
+#[test]
+fn fireball_rejected_damage_preserves_impulse_reward_and_freeze_immunity() {
+    let mut frozen = victim(2, 2.0, 0.0);
+    frozen.knockback_immune = true;
+    let mut w = Arena {
+        targets: vec![victim(1, 1.0, 0.0), frozen],
+        reject_damage: true,
+        ..Default::default()
+    };
+    let r = fireball_impact(&mut w, 99, DVec3::ZERO, 6.0).unwrap();
+    assert_eq!((r.damaged, r.pushed, r.xp), (0, 1, 4));
+    assert_eq!(w.thaws, vec![(1, 0.08)]);
+    assert_eq!(w.burns.len(), 2);
+    w.targets.remove(0);
+    w.impulses.clear();
+    let r = fireball_impact(&mut w, 99, DVec3::ZERO, 6.0).unwrap();
+    assert_eq!(r.xp, 0);
+    assert!(w.impulses.is_empty());
+}
+#[test]
+fn fireball_requests_two_block_fire_patch_without_rewarding_terrain_only() {
+    let mut w = Arena {
+        placed_fires: 5,
+        ..Default::default()
+    };
+    let r = fireball_impact(&mut w, 99, DVec3::Y, 6.0).unwrap();
+    assert_eq!(r.xp, 0);
+    assert_eq!(w.patches, vec![(DVec3::Y, 2.0)]);
+    assert!(fireball_impact(&mut w, 99, DVec3::NAN, 6.0).is_err());
+    assert!(fireball_impact(&mut w, 99, DVec3::Y, f64::NAN).is_err());
+    assert_eq!(w.patches.len(), 1);
+}
+#[test]
+fn fireball_swept_collision_has_one_blast_and_no_extra_direct_hit() {
+    use arcana_core::starter::BoltStep;
+    let mut w = Arena {
+        targets: vec![victim(1, 1.1, 0.0), victim(2, 0.9, 0.0)],
+        ..Default::default()
+    };
+    let mut bolt = fireball();
+    assert!(matches!(
+        bolt.tick(&mut w, 99, DVec3::ZERO).unwrap(),
+        BoltStep::Impact {
+            target: Some(2),
+            xp: 4,
+            ..
+        }
+    ));
+    assert_eq!(w.hits, vec![(1, 6.0), (2, 6.0)]);
+    assert_eq!(w.patches.len(), 1);
+    assert_eq!(
+        bolt.tick(&mut w, 99, DVec3::ZERO).unwrap(),
+        BoltStep::Expired
+    );
+    assert_eq!(w.hits.len(), 2);
+    assert_eq!(w.patches.len(), 1);
+}
+#[test]
+fn fireball_stops_at_wall_and_does_not_blast_a_hidden_body() {
+    use arcana_core::starter::BoltStep;
+    let mut w = Arena {
+        wall: Some(0.3),
+        targets: vec![victim(1, 1.5, 0.0)],
+        ..Default::default()
+    };
+    let mut bolt = fireball();
+    assert!(matches!(
+        bolt.tick(&mut w, 99, DVec3::ZERO).unwrap(),
+        BoltStep::Impact {
+            target: None,
+            xp: 0,
+            ..
+        }
+    ));
+    assert_eq!(bolt.position, DVec3::new(0.3, 1.0, 0.0));
+    assert!(w.hits.is_empty());
+    assert!(w.burns.is_empty());
+    assert!(w.impulses.is_empty());
+}
+#[test]
+fn fireball_flies_straight_and_expiry_never_explodes() {
+    use arcana_core::starter::BoltStep;
+    let mut w = Arena::default();
+    let mut bolt = fireball();
+    for _ in 0..5 {
+        assert_eq!(
+            bolt.tick(&mut w, 99, DVec3::ZERO).unwrap(),
+            BoltStep::Flying
+        );
+    }
+    assert_eq!(bolt.velocity, DVec3::new(1.2, 0.0, 0.0));
+    assert!((bolt.position.x - 6.0).abs() < 1e-9);
+    assert_eq!(bolt.position.y, 1.0);
+    bolt.range = bolt.travelled - 0.1;
+    assert_eq!(
+        bolt.tick(&mut w, 99, DVec3::ZERO).unwrap(),
+        BoltStep::Expired
+    );
+    let mut old = fireball();
+    old.age = 160;
+    assert_eq!(
+        old.tick(&mut w, 99, DVec3::ZERO).unwrap(),
+        BoltStep::Expired
+    );
+    assert!(w.patches.is_empty());
+    assert!(w.hits.is_empty());
+}
+#[test]
+fn fireball_unlocks_at_level_two_and_keeps_original_cost_and_cancellation() {
+    use arcana_core::{
+        School,
+        casting::{CastPermission, Caster, Phase, Rejection},
+        state::MagicState,
+    };
+    let c = Catalog::bundled().unwrap();
+    let mut state = MagicState::default();
+    state.awaken(School::Fire, &c);
+    let mut caster = Caster::default();
+    assert_eq!(
+        caster.request(&mut state, &c, "fireball", 0, CastPermission::default()),
+        Err(Rejection::Locked)
+    );
+    assert_eq!(state.mana(), 100.0);
+    assert_eq!(state.cooldown("fireball"), 0);
+    state.add_xp(100, &c);
+    state.fill_mana();
+    assert_eq!(state.level(), 2);
+    caster
+        .request(&mut state, &c, "fireball", 10, CastPermission::default())
+        .unwrap();
+    assert_eq!(state.mana(), 89.0);
+    assert_eq!(state.cooldown("fireball"), 200);
+    assert!(caster.advance(24).unwrap().is_empty());
+    assert_eq!(
+        caster.cancel(&mut state, 24, false).unwrap().phase,
+        Phase::Cancelled
+    );
+    assert_eq!(state.mana(), 115.0);
+    assert_eq!(state.cooldown("fireball"), 200);
+    assert!(caster.cancel(&mut state, 24, false).is_none());
+    assert_eq!(state.mana(), 115.0);
 }
 #[test]
 fn ignition_selects_distance_to_caster_instead_of_first_box_intersection() {

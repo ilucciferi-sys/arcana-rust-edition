@@ -435,6 +435,7 @@ impl Game<'_> {
                 < match v.message.stage {
                     starters::VisualStage::FirePush => 4.0,
                     starters::VisualStage::Ignition => 1.2,
+                    starters::VisualStage::FireballImpact => 1.8,
                     _ => 1.0,
                 }
         });
@@ -484,7 +485,16 @@ impl Game<'_> {
         });
     }
     pub(super) fn arcana_status(&self) -> serde_json::Value {
-        serde_json::json!({"snapshot":self.arcana.snapshot,"blocked_players":self.arcana.load_errors.len(),"ritual_visuals":self.arcana.ritual_views.len()})
+        let projectiles = self.integrated.as_ref().and_then(|server| {
+            server.call(|game| {
+                game.arcana
+                    .actors
+                    .values()
+                    .map(|a| a.bolts.len())
+                    .sum::<usize>()
+            })
+        });
+        serde_json::json!({"snapshot":self.arcana.snapshot,"blocked_players":self.arcana.load_errors.len(),"ritual_visuals":self.arcana.ritual_views.len(),"spell_visuals":self.arcana.starter_views.values().map(|v| &v.message).collect::<Vec<_>>(),"server_projectiles":projectiles})
     }
     pub(super) fn arcana_hud(&self, hud: &mut horizon_client::hud::HudBatch) {
         if self.screen != super::Screen::Playing || self.ui.hide_gui {

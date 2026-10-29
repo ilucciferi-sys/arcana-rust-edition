@@ -15,6 +15,7 @@ pub(super) enum VisualStage {
     Gust,
     Ignition,
     FirePush,
+    FireballImpact,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(super) struct StarterVisual {
@@ -172,6 +173,13 @@ impl Game<'_> {
                 Ok(BoltStep::Impact { xp, target, .. }) => {
                     actor.state.add_xp(xp, catalog());
                     actor.dirty = true;
+                    let stage = if bolt.kind == BoltKind::Fireball {
+                        actor.notice =
+                            Some(("Огонь на земле пока не подключён.".into(), tick + 100));
+                        VisualStage::FireballImpact
+                    } else {
+                        VisualStage::Impact
+                    };
                     self.arcana_starter_visual(
                         bolt.id,
                         bolt.kind.spell_id(),
@@ -179,7 +187,7 @@ impl Game<'_> {
                         direction,
                         DVec3::ZERO,
                         bolt.age,
-                        VisualStage::Impact,
+                        stage,
                     );
                     log::info!(
                         "Arcana {} impact: target={target:?}, xp={xp}",
@@ -219,6 +227,7 @@ impl Game<'_> {
             "wind_gust",
             "ignition",
             "fire_push",
+            "fireball",
         ]
         .contains(&message.spell_id.as_str())
         {

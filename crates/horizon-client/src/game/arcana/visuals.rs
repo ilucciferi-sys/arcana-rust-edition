@@ -1,6 +1,7 @@
 //! Small spell compositions use Horizon's existing geometry/material batches.
 //! Solar's high-density effects keep using the separate GPU VFX extension.
 mod fire;
+mod fireball;
 use super::{Game, starters::VisualStage};
 use glam::{DVec3, Quat, Vec3};
 use horizon_client::{
@@ -289,6 +290,7 @@ impl Game<'_> {
                 VisualStage::Preparation => 0.22,
                 VisualStage::Ignition => 1.2,
                 VisualStage::FirePush => 4.0,
+                VisualStage::FireballImpact => 1.8,
                 _ => 0.8,
             };
             if elapsed > lifetime || m.dimension != self.dim.id() {
@@ -307,6 +309,9 @@ impl Game<'_> {
             let v = u.cross(dir).normalize_or_zero();
             let time = m.age as f32 / 20.0 + elapsed;
             if fire::draw(m, at, elapsed, time, texture, glow) {
+                continue;
+            }
+            if fireball::draw(m, at, elapsed, time, texture, glow) {
                 continue;
             }
             let color = match m.spell_id.as_str() {

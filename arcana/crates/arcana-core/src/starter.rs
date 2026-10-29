@@ -11,6 +11,7 @@ pub enum BoltKind {
     Spark,
     Water,
     Stone,
+    Fireball,
 }
 impl BoltKind {
     pub fn for_spell(id: &str) -> Option<Self> {
@@ -18,6 +19,7 @@ impl BoltKind {
             "spark" => Some(Self::Spark),
             "water_bolt" => Some(Self::Water),
             "stone_bolt" => Some(Self::Stone),
+            "fireball" => Some(Self::Fireball),
             _ => None,
         }
     }
@@ -26,6 +28,7 @@ impl BoltKind {
             Self::Spark => "spark",
             Self::Water => "water_bolt",
             Self::Stone => "stone_bolt",
+            Self::Fireball => "fireball",
         }
     }
 }
@@ -39,6 +42,9 @@ pub struct Bolt {
     pub age: u32,
     pub travelled: f64,
     pub range: f64,
+    pub power: f64,
+    #[serde(default)]
+    finished: bool,
 }
 #[derive(Debug, Clone, PartialEq)]
 pub enum BoltStep {
@@ -74,6 +80,10 @@ pub trait StarterWorld: CombatWorld {
     /// Only moving, hostile arrows (not tridents), snowballs and eggs.
     fn hostile_projectiles(&self, caster: u64, bounds: Bounds) -> Vec<MovingProjectile>;
     fn discard_projectile(&mut self, id: u64);
+    /// Owned fire only, subject to the host's world/placement policy.
+    fn ignite_patch(&mut self, _: DVec3, _: f64) -> u32 {
+        0
+    }
 }
 impl Bolt {
     pub fn new(id: u64, spell: &Spell, position: DVec3, direction: DVec3) -> Result<Self, String> {
@@ -93,6 +103,8 @@ impl Bolt {
             age: 0,
             travelled: 0.0,
             range: spell.range,
+            power: spell.power,
+            finished: false,
         })
     }
     pub fn tick(
@@ -101,8 +113,12 @@ impl Bolt {
         caster: u64,
         caster_position: DVec3,
     ) -> Result<BoltStep, String> {
+        if self.finished {
+            return Ok(BoltStep::Expired);
+        }
         self.age += 1;
         if self.age > 160 || self.travelled > self.range {
+            self.finished = true;
             return Ok(BoltStep::Expired);
         }
         let from = self.position;
@@ -128,13 +144,23 @@ impl Bolt {
         }
         self.previous = from;
         if victim.is_some() || block.is_some() {
+            self.finished = true;
             self.position = end;
+            if self.kind == BoltKind::Fireball {
+                let blast = crate::fire::fireball_impact(world, caster, end, self.power)?;
+                return Ok(BoltStep::Impact {
+                    position: end,
+                    target: victim.map(|t| t.id),
+                    xp: blast.xp,
+                });
+            }
             let mut xp = 0;
             if let Some(target) = victim {
                 let power = match self.kind {
                     BoltKind::Spark => 4.0,
                     BoltKind::Water => 3.0,
                     BoltKind::Stone => 6.0,
+                    BoltKind::Fireball => unreachable!(),
                 };
                 let style = if self.kind == BoltKind::Stone {
                     DamageStyle::Thrown
@@ -170,6 +196,7 @@ impl Bolt {
                                 );
                             }
                         }
+                        BoltKind::Fireball => unreachable!(),
                     }
                 }
             } else if self.kind == BoltKind::Spark {
@@ -186,7 +213,7 @@ impl Bolt {
         match self.kind {
             BoltKind::Stone => self.velocity = (self.velocity - DVec3::Y * 0.035) * 0.995,
             BoltKind::Water => self.velocity *= 0.997,
-            BoltKind::Spark => {}
+            BoltKind::Spark | BoltKind::Fireball => {}
         }
         Ok(BoltStep::Flying)
     }

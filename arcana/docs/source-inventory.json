@@ -867,7 +867,7 @@
         "ru.arcana.common.magic.spell.entity.MagicEffectEntity",
         "ru.arcana.util.Ids"
       ],
-      "review": "inventory_only"
+      "review": "partial_manual_review"
     },
     {
       "path": "src/main/java/ru/arcana/client/render/MagicEffects.java",
@@ -2052,7 +2052,7 @@
         "net.minecraft.world.level.block.*",
         "net.minecraft.world.level.block.state.*"
       ],
-      "review": "inventory_only"
+      "review": "partial_manual_review"
     },
     {
       "path": "src/main/java/ru/arcana/common/magic/spell/runtime/ElementForms.java",
@@ -2118,7 +2118,7 @@
         "ru.arcana.network.packet.FreezePayload",
         "ru.arcana.util.Ids"
       ],
-      "review": "inventory_only"
+      "review": "partial_manual_review"
     },
     {
       "path": "src/main/java/ru/arcana/common/magic/spell/runtime/MagicFogVision.java",
@@ -2154,7 +2154,7 @@
         "ru.arcana.common.magic.school.MagicSchool",
         "ru.arcana.common.magic.spell.*"
       ],
-      "review": "inventory_only"
+      "review": "partial_manual_review"
     },
     {
       "path": "src/main/java/ru/arcana/common/magic/spell/runtime/ReworkSpells.java",
@@ -2248,7 +2248,7 @@
         "net.neoforged.neoforge.event.EventHooks",
         "ru.arcana.config.ArcanaConfig"
       ],
-      "review": "inventory_only"
+      "review": "partial_manual_review"
     },
     {
       "path": "src/main/java/ru/arcana/common/magic/spell/Spell.java",
@@ -4918,16 +4918,16 @@
       "school": "fire",
       "mechanic": "IGNITE",
       "definition": "byte_identical",
-      "logic": "pending",
-      "game_verification": "pending"
+      "logic": "host_pilot",
+      "game_verification": "native_mob_pilot"
     },
     {
       "id": "fire_push",
       "school": "fire",
       "mechanic": "PUSH",
       "definition": "byte_identical",
-      "logic": "pending",
-      "game_verification": "pending"
+      "logic": "host_pilot",
+      "game_verification": "native_mob_pilot"
     },
     {
       "id": "fireball",

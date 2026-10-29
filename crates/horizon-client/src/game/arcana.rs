@@ -1,5 +1,6 @@
 //! Opt-in migration. Elemental awakening and combat run on the server.
 //! PvP, necromantic awakening and legacy-save migration remain unavailable.
+mod fire;
 mod persistence;
 mod rituals;
 mod starters;
@@ -351,7 +352,9 @@ impl Game<'_> {
                     if event.phase == Phase::Release
                         && let Some((start, direction)) = self.arcana_context()
                     {
-                        if self.arcana_release_starter(&mut actor, &event, start, direction) {
+                        if self.arcana_release_fire(&mut actor, &event, direction)
+                            || self.arcana_release_starter(&mut actor, &event, start, direction)
+                        {
                             continue;
                         }
                         let caster = u64::from(self.lan_acting.unwrap_or(0));
@@ -427,9 +430,14 @@ impl Game<'_> {
         self.arcana.ritual_views.retain(|_, v| {
             v.received.elapsed().as_secs_f32() < if v.message.finished { 1.5 } else { 1.0 }
         });
-        self.arcana
-            .starter_views
-            .retain(|_, v| v.received.elapsed().as_secs_f32() < 1.0);
+        self.arcana.starter_views.retain(|_, v| {
+            v.received.elapsed().as_secs_f32()
+                < match v.message.stage {
+                    starters::VisualStage::FirePush => 4.0,
+                    starters::VisualStage::Ignition => 1.2,
+                    _ => 1.0,
+                }
+        });
         if self.remote.is_none() || self.player.is_none() || self.remote_loading() {
             return;
         }

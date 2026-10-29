@@ -3,6 +3,7 @@
 #![forbid(unsafe_code)]
 pub mod casting;
 pub mod catalog;
+pub mod fire;
 pub mod network;
 pub mod ritual;
 pub mod solar;

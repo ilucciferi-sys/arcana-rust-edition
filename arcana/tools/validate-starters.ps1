@@ -73,7 +73,12 @@ foreach($school in @('fire','water','earth','air')) {
         }
         $reports+=@{school=$school;health=$golem.health;burning=$golem.burning;xp=$after.snapshot.state.xp}
         if($school -eq 'fire') {
-            Invoke-Game @('key','f8','tap') | Out-Null;Invoke-Game @('key','r','tap') | Out-Null;Start-Sleep -Milliseconds 150
+            Invoke-Game @('key','f8','tap') | Out-Null
+            for($i=0;$i -lt 12;$i++) {
+                if((Invoke-Game @('arcana-status')).snapshot.state.selected -eq 'solar_spear'){break}
+                Invoke-Game @('key','r','tap') | Out-Null;Start-Sleep -Milliseconds 100
+            }
+            if((Invoke-Game @('arcana-status')).snapshot.state.selected -ne 'solar_spear'){throw 'Could not select solar_spear'}
             Invoke-Game @('key','v','tap') | Out-Null;Start-Sleep -Milliseconds 400;Invoke-Game @('key','x','tap') | Out-Null
             Start-Sleep -Milliseconds 150
         }

@@ -15,8 +15,9 @@ REVIEWED = {
     "ReworkSpells", "MagicSchool", "RitualManager", "ArcanaConfig", "SparkSpell",
     "WaterBoltSpell", "StoneBoltSpell", "WindGustSpell", "AirSpells", "ActionPayload", "VisualPayload",
     "Rituals", "RitualPattern", "RitualActivation", "AwakeningRitual", "RitualEffectRenderer",
+    "WorldMagic", "ArcaneFireBlock", "MagicStatuses", "FreezeState", "MagicEffectRenderer",
 }
-PILOTS = {"solar_spear", "spark", "water_bolt", "stone_bolt", "wind_gust"}
+PILOTS = {"solar_spear", "spark", "water_bolt", "stone_bolt", "wind_gust", "ignition", "fire_push"}
 
 def sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()

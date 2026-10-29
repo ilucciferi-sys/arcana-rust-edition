@@ -30,7 +30,7 @@ fn all_original_content_survives() {
         (128.0, 1400, 70, 32.0, 48.0, 12.0)
     );
     assert_eq!(s.name, "Солнечное копьё");
-    assert_eq!(c.spells().iter().filter(|s| s.executable()).count(), 5);
+    assert_eq!(c.spells().iter().filter(|s| s.executable()).count(), 7);
 }
 
 #[test]

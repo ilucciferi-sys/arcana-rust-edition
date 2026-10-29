@@ -52,6 +52,8 @@ impl Spell {
 
     pub fn executable(&self) -> bool {
         self.id == "solar_spear" && self.mechanic == "SUN_SPEAR"
+            || self.id == "ignition" && self.mechanic == "IGNITE"
+            || self.id == "fire_push" && self.mechanic == "PUSH"
             || ["spark", "water_bolt", "stone_bolt", "wind_gust"].contains(&self.id.as_str())
                 && self.mechanic == "STARTER"
     }

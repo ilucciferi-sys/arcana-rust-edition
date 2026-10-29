@@ -13,6 +13,8 @@ pub(super) enum VisualStage {
     Impact,
     Expired,
     Gust,
+    Ignition,
+    FirePush,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(super) struct StarterVisual {
@@ -210,7 +212,15 @@ impl Game<'_> {
         {
             return;
         }
-        if !["spark", "water_bolt", "stone_bolt", "wind_gust"].contains(&message.spell_id.as_str())
+        if ![
+            "spark",
+            "water_bolt",
+            "stone_bolt",
+            "wind_gust",
+            "ignition",
+            "fire_push",
+        ]
+        .contains(&message.spell_id.as_str())
         {
             return;
         }

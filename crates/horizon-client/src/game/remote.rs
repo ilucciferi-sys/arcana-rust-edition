@@ -1822,6 +1822,10 @@ impl Game<'_> {
 
     fn handle_packet(&mut self, packet: C) -> Result<()> {
         match packet {
+            #[cfg(feature = "arcana")]
+            C::CustomPayload(p) if p.channel == super::arcana::EVENT_CHANNEL => {
+                self.arcana_receive(&p.data);
+            }
             // ClientCommonPacketListenerImpl.handlePing runs on the game
             // thread, after all preceding packets (especially teleports).
             C::Ping(p) => self.send(S::Pong(p)),
@@ -1831,6 +1835,10 @@ impl Game<'_> {
                 self.debug_charts.ping.log(delay);
             }
             C::Login(p) => {
+                #[cfg(feature = "arcana")]
+                {
+                    self.arcana = Default::default();
+                }
                 self.level.hardcore = p.hardcore;
                 // handleLogin makes a new MultiPlayerGameMode (carried index 0) and a
                 // new LocalPlayer (slot 0, no effects).
@@ -1856,6 +1864,10 @@ impl Game<'_> {
                 self.send(S::ClientInformation(info));
             }
             C::Respawn(p) => {
+                #[cfg(feature = "arcana")]
+                {
+                    self.arcana = Default::default();
+                }
                 // A new player, without effects (the server sends them
                 // again) and with no item in use.
                 self.potions.effects.clear();

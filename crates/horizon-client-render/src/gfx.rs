@@ -557,6 +557,10 @@ pub struct Renderer {
     occlusion: occlusion::Occlusion,
     /// Resolution scale, FXAA and TAA (Horizon settings).
     world_post: world_post::Post,
+    #[cfg(feature = "arcana")]
+    energy_lance: Option<horizon_vfx::Lance>,
+    #[cfg(feature = "arcana")]
+    energy_gpu: Option<horizon_vfx::GpuVfx>,
     /// HDR output (Horizon setting): `Some` while the swapchain is HDR.
     hdr: Option<hdr::Hdr>,
     /// The HDR output the window's surface can present.
@@ -605,6 +609,14 @@ pub struct Renderer {
     /// Advance animated block textures (Horizon setting; vanilla always does).
     pub animated_textures: bool,
     present_modes: Vec<wgpu::PresentMode>,
+}
+
+#[cfg(feature = "arcana")]
+impl Renderer {
+    /// Install this frame's opt-in energy-lance composition. Inputs are camera-relative.
+    pub fn set_energy_lance(&mut self, effect: Option<horizon_vfx::Lance>) {
+        self.energy_lance = effect;
+    }
 }
 /// Every layer's mip levels, layer major (`first` is the first layer's
 /// index into `settings`), made by `MipmapGenerator`.
@@ -2731,6 +2743,10 @@ impl Renderer {
             block_entity_revision: next_block_entity_revision(),
             occlusion: occlusion::Occlusion::new(crate::chunk::MIN_Y, crate::chunk::HEIGHT / 16),
             world_post,
+            #[cfg(feature = "arcana")]
+            energy_lance: None,
+            #[cfg(feature = "arcana")]
+            energy_gpu: None,
             hdr: None,
             hdr_output,
             hdr_marker: None,
@@ -4641,8 +4657,14 @@ impl Renderer {
                 .flatten();
         }
         let pack_reads_world = pack_post || native_post;
+        // VFX samples depth to stop emissive geometry at the world's surfaces.
+        // The offscreen world target supplies a sampleable depth texture.
+        #[cfg(feature = "arcana")]
+        let pack_reads_world = pack_reads_world || self.energy_lance.is_some();
         // Phase 2 of occlusion culling draws over the depth, and a shader pack or TAA reads it.
         let keep_depth = pack_reads_world || (taa && self.world_post.taa);
+        #[cfg(feature = "arcana")]
+        let keep_depth = keep_depth || self.energy_lance.is_some();
         // The pack's program reads the vertices this frame's draws bind.
         let pack_draws_terrain = pack_terrain && flat_frame == self.pack_terrain_flat;
         // The shadow camera's lists, drawn by the pack's shadow programs.
@@ -5119,6 +5141,30 @@ impl Renderer {
                     0..1,
                 );
             }
+        }
+        #[cfg(feature = "arcana")]
+        if !frame.title
+            && let Some(effect) = self.energy_lance
+        {
+            let gpu = self.energy_gpu.get_or_insert_with(|| {
+                horizon_vfx::GpuVfx::new(&self.device, self.config.format.remove_srgb_suffix())
+            });
+            gpu.encode(
+                &self.device,
+                &self.queue,
+                &mut encoder,
+                horizon_vfx::RenderTarget {
+                    color: world_view,
+                    depth: world_depth,
+                    size: self
+                        .world_post
+                        .size()
+                        .unwrap_or([self.config.width, self.config.height]),
+                    view_projection: Mat4::from_cols_array_2d(&globals.view_proj),
+                    eye: glam::Vec3::ZERO,
+                },
+                effect,
+            );
         }
         if let Some((color, depth)) = &scaled
             && pack_post

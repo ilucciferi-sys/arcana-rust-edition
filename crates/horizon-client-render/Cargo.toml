@@ -7,6 +7,7 @@ rust-version = "1.90"
 description = "The client's world data, rendering and screens: chunks, meshing, light, streaming, the renderer, the HUD, menus and settings; no gameplay"
 
 [dependencies]
+horizon-vfx = { path = "../../arcana/crates/horizon-vfx", optional = true }
 horizon-assets = { path = "../horizon-assets" }
 horizon-bench = { path = "../horizon-bench" }
 horizon-client-core = { path = "../horizon-client-core" }
@@ -54,6 +55,7 @@ wgpu = { version = "30.0.1", default-features = false, features = ["dx12"] }
 wgpu = { version = "30.0.1", default-features = false, features = ["gles"] }
 
 [features]
+arcana = ["dep:horizon-vfx"]
 # Sound output: horizon-client's `audio` feature.
 audio = ["dep:cpal"]
 # Helpers horizon-client's tests build their fixtures with.

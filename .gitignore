@@ -1,5 +1,6 @@
 /.local/
 /target/
+/arcana/target/
 **/__pycache__/
 *.py[cod]
 /.venv/

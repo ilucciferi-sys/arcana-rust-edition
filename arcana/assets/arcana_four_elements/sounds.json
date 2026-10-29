@@ -1,0 +1,352 @@
+{
+  "fire.charge": {
+    "subtitle": "subtitles.arcana_four_elements.fire.charge",
+    "sounds": [
+      {
+        "name": "arcana_four_elements:fire/charge",
+        "attenuation_distance": 48,
+        "stream": false
+      }
+    ]
+  },
+  "fire.release": {
+    "subtitle": "subtitles.arcana_four_elements.fire.release",
+    "sounds": [
+      {
+        "name": "arcana_four_elements:fire/release",
+        "attenuation_distance": 48,
+        "stream": false
+      }
+    ]
+  },
+  "fire.impact": {
+    "subtitle": "subtitles.arcana_four_elements.fire.impact",
+    "sounds": [
+      {
+        "name": "arcana_four_elements:fire/impact",
+        "attenuation_distance": 48,
+        "stream": false
+      }
+    ]
+  },
+  "fire.sustain": {
+    "subtitle": "subtitles.arcana_four_elements.fire.sustain",
+    "sounds": [
+      {
+        "name": "arcana_four_elements:fire/sustain",
+        "attenuation_distance": 48,
+        "stream": false
+      }
+    ]
+  },
+  "fire.ultimate": {
+    "subtitle": "subtitles.arcana_four_elements.fire.ultimate",
+    "sounds": [
+      {
+        "name": "arcana_four_elements:fire/ultimate",
+        "attenuation_distance": 48,
+        "stream": false
+      }
+    ]
+  },
+  "water.charge": {
+    "subtitle": "subtitles.arcana_four_elements.water.charge",
+    "sounds": [
+      {
+        "name": "arcana_four_elements:water/charge",
+        "attenuation_distance": 48,
+        "stream": false
+      }
+    ]
+  },
+  "water.release": {
+    "subtitle": "subtitles.arcana_four_elements.water.release",
+    "sounds": [
+      {
+        "name": "arcana_four_elements:water/release",
+        "attenuation_distance": 48,
+        "stream": false
+      }
+    ]
+  },
+  "water.impact": {
+    "subtitle": "subtitles.arcana_four_elements.water.impact",
+    "sounds": [
+      {
+        "name": "arcana_four_elements:water/impact",
+        "attenuation_distance": 48,
+        "stream": false
+      }
+    ]
+  },
+  "water.sustain": {
+    "subtitle": "subtitles.arcana_four_elements.water.sustain",
+    "sounds": [
+      {
+        "name": "arcana_four_elements:water/sustain",
+        "attenuation_distance": 48,
+        "stream": false
+      }
+    ]
+  },
+  "water.ultimate": {
+    "subtitle": "subtitles.arcana_four_elements.water.ultimate",
+    "sounds": [
+      {
+        "name": "arcana_four_elements:water/ultimate",
+        "attenuation_distance": 48,
+        "stream": false
+      }
+    ]
+  },
+  "earth.charge": {
+    "subtitle": "subtitles.arcana_four_elements.earth.charge",
+    "sounds": [
+      {
+        "name": "arcana_four_elements:earth/charge",
+        "attenuation_distance": 48,
+        "stream": false
+      }
+    ]
+  },
+  "earth.release": {
+    "subtitle": "subtitles.arcana_four_elements.earth.release",
+    "sounds": [
+      {
+        "name": "arcana_four_elements:earth/release",
+        "attenuation_distance": 48,
+        "stream": false
+      }
+    ]
+  },
+  "earth.impact": {
+    "subtitle": "subtitles.arcana_four_elements.earth.impact",
+    "sounds": [
+      {
+        "name": "arcana_four_elements:earth/impact",
+        "attenuation_distance": 48,
+        "stream": false
+      }
+    ]
+  },
+  "earth.sustain": {
+    "subtitle": "subtitles.arcana_four_elements.earth.sustain",
+    "sounds": [
+      {
+        "name": "arcana_four_elements:earth/sustain",
+        "attenuation_distance": 48,
+        "stream": false
+      }
+    ]
+  },
+  "earth.ultimate": {
+    "subtitle": "subtitles.arcana_four_elements.earth.ultimate",
+    "sounds": [
+      {
+        "name": "arcana_four_elements:earth/ultimate",
+        "attenuation_distance": 48,
+        "stream": false
+      }
+    ]
+  },
+  "air.charge": {
+    "subtitle": "subtitles.arcana_four_elements.air.charge",
+    "sounds": [
+      {
+        "name": "arcana_four_elements:air/charge",
+        "attenuation_distance": 48,
+        "stream": false
+      }
+    ]
+  },
+  "air.release": {
+    "subtitle": "subtitles.arcana_four_elements.air.release",
+    "sounds": [
+      {
+        "name": "arcana_four_elements:air/release",
+        "attenuation_distance": 48,
+        "stream": false
+      }
+    ]
+  },
+  "air.impact": {
+    "subtitle": "subtitles.arcana_four_elements.air.impact",
+    "sounds": [
+      {
+        "name": "arcana_four_elements:air/impact",
+        "attenuation_distance": 48,
+        "stream": false
+      }
+    ]
+  },
+  "air.sustain": {
+    "subtitle": "subtitles.arcana_four_elements.air.sustain",
+    "sounds": [
+      {
+        "name": "arcana_four_elements:air/sustain",
+        "attenuation_distance": 48,
+        "stream": false
+      }
+    ]
+  },
+  "air.ultimate": {
+    "subtitle": "subtitles.arcana_four_elements.air.ultimate",
+    "sounds": [
+      {
+        "name": "arcana_four_elements:air/ultimate",
+        "attenuation_distance": 48,
+        "stream": false
+      }
+    ]
+  },
+  "necromancy.charge": {
+    "subtitle": "subtitles.arcana_four_elements.necromancy.charge",
+    "sounds": [
+      {
+        "name": "arcana_four_elements:necromancy/charge",
+        "attenuation_distance": 48,
+        "stream": false
+      }
+    ]
+  },
+  "necromancy.release": {
+    "subtitle": "subtitles.arcana_four_elements.necromancy.release",
+    "sounds": [
+      {
+        "name": "arcana_four_elements:necromancy/release",
+        "attenuation_distance": 48,
+        "stream": false
+      }
+    ]
+  },
+  "necromancy.impact": {
+    "subtitle": "subtitles.arcana_four_elements.necromancy.impact",
+    "sounds": [
+      {
+        "name": "arcana_four_elements:necromancy/impact",
+        "attenuation_distance": 48,
+        "stream": false
+      }
+    ]
+  },
+  "necromancy.sustain": {
+    "subtitle": "subtitles.arcana_four_elements.necromancy.sustain",
+    "sounds": [
+      {
+        "name": "arcana_four_elements:necromancy/sustain",
+        "attenuation_distance": 48,
+        "stream": false
+      }
+    ]
+  },
+  "necromancy.ultimate": {
+    "subtitle": "subtitles.arcana_four_elements.necromancy.ultimate",
+    "sounds": [
+      {
+        "name": "arcana_four_elements:necromancy/ultimate",
+        "attenuation_distance": 48,
+        "stream": false
+      }
+    ]
+  },
+  "soul_wail": {
+    "subtitle": "subtitles.arcana_four_elements.soul_wail",
+    "sounds": [
+      {
+        "name": "arcana_four_elements:spectral/soul_wail",
+        "attenuation_distance": 32,
+        "stream": false
+      }
+    ]
+  },
+  "soul_whisper": {
+    "subtitle": "subtitles.arcana_four_elements.soul_whisper",
+    "sounds": [
+      {
+        "name": "arcana_four_elements:spectral/soul_whisper",
+        "attenuation_distance": 32,
+        "stream": false
+      }
+    ]
+  },
+  "horse_summon": {
+    "subtitle": "subtitles.arcana_four_elements.horse_summon",
+    "sounds": [
+      {
+        "name": "arcana_four_elements:spectral/horse_summon",
+        "attenuation_distance": 32,
+        "stream": false
+      }
+    ]
+  },
+  "horse_voice": {
+    "subtitle": "subtitles.arcana_four_elements.horse_voice",
+    "sounds": [
+      {
+        "name": "arcana_four_elements:spectral/horse_voice",
+        "attenuation_distance": 32,
+        "stream": false
+      }
+    ]
+  },
+  "air_cut": {
+    "subtitle": "subtitles.arcana_four_elements.air_cut",
+    "sounds": [
+      {
+        "name": "arcana_four_elements:air_combat/air_cut",
+        "attenuation_distance": 48,
+        "stream": false
+      }
+    ]
+  },
+  "air_palm": {
+    "subtitle": "subtitles.arcana_four_elements.air_palm",
+    "sounds": [
+      {
+        "name": "arcana_four_elements:air_combat/air_palm",
+        "attenuation_distance": 48,
+        "stream": false
+      }
+    ]
+  },
+  "air_counter": {
+    "subtitle": "subtitles.arcana_four_elements.air_counter",
+    "sounds": [
+      {
+        "name": "arcana_four_elements:air_combat/air_counter",
+        "attenuation_distance": 48,
+        "stream": false
+      }
+    ]
+  },
+  "air_pull": {
+    "subtitle": "subtitles.arcana_four_elements.air_pull",
+    "sounds": [
+      {
+        "name": "arcana_four_elements:air_combat/air_pull",
+        "attenuation_distance": 48,
+        "stream": false
+      }
+    ]
+  },
+  "air_spin": {
+    "subtitle": "subtitles.arcana_four_elements.air_spin",
+    "sounds": [
+      {
+        "name": "arcana_four_elements:air_combat/air_spin",
+        "attenuation_distance": 48,
+        "stream": false
+      }
+    ]
+  },
+  "air_thunder": {
+    "subtitle": "subtitles.arcana_four_elements.air_thunder",
+    "sounds": [
+      {
+        "name": "arcana_four_elements:air_combat/air_thunder",
+        "attenuation_distance": 48,
+        "stream": false
+      }
+    ]
+  }
+}

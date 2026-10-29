@@ -1,0 +1,11 @@
+[package]
+name = "arcana-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Authoritative Arcana simulation, independent of rendering and transport"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+glam.workspace = true

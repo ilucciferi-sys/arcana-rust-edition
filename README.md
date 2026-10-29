@@ -1,3 +1,115 @@
+# Arcana: Rust Edition
+
+Русская инструкция по сборке и запуску экспериментального переноса **Arcana 1.8.1** на движок **Horizon**.
+
+**Проект в разработке. Готового релиза Arcana: Rust Edition пока нет.** Каталог содержит все 76 исходных заклинаний, но исполняемый прототип сейчас есть только у «Солнечного копья». Остальные механики ещё предстоит перенести.
+
+Код прототипа находится в ветке [`codex/arcana-rust`](https://github.com/ilucciferi-sys/arcana-rust-edition/tree/codex/arcana-rust).
+[Дорожная карта](https://github.com/ilucciferi-sys/arcana-rust-edition/blob/codex/arcana-rust/arcana/docs/ROADMAP.md) · [Техническая документация](https://github.com/ilucciferi-sys/arcana-rust-edition/blob/codex/arcana-rust/arcana/README.md) · [Оригинальный Java-мод Arcana](https://github.com/ilucciferi-sys/arcana-four-elements)
+
+## Что потребуется
+
+- Windows x64 для приведённых ниже команд и проверенного прототипа.
+- Rust stable версии 1.90 или новее и средства сборки для выбранного Rust toolchain.
+- JDK 25: при подготовке ресурсов нужны `java` и `javac`.
+- Установленная и хотя бы один раз запущенная **Minecraft Java 26.3**.
+- Официальный `server.jar` той же версии 26.3.
+- Видеокарта с поддержкой Vulkan. Проверка прототипа выполнена на RTX 5070; другие конфигурации ещё предстоит проверить.
+
+Horizon использует ресурсы вашей собственной копии Minecraft. Файлы игры и подготовленные ресурсы не входят в этот репозиторий.
+
+Java-мод для NeoForge 1.21.1 и Rust-версия являются разными проектами: JAR Arcana нельзя просто положить в Horizon.
+
+## 1. Скачать исходники прототипа
+
+Откройте PowerShell:
+
+```powershell
+git clone --branch codex/arcana-rust https://github.com/ilucciferi-sys/arcana-rust-edition.git
+cd arcana-rust-edition
+```
+
+## 2. Подготовить ресурсы Minecraft
+
+Укажите путь к JDK 25 и скачанному серверному JAR:
+
+```powershell
+$env:JAVA_HOME = "C:\путь\к\jdk-25"
+$env:PATH = "$env:JAVA_HOME\bin;" + $env:PATH
+
+cargo run -p horizon-prepare -- --prepare --minecraft-dir "$env:APPDATA\.minecraft" --server-jar "C:\путь\к\server.jar"
+```
+
+Если Minecraft установлена в другой папке, замените значение `--minecraft-dir`.
+Подготовленные данные появятся в `.local/horizon-client/26.3`.
+
+## 3. Собрать Arcana: Rust Edition
+
+```powershell
+.\arcana\dev.ps1 build
+```
+
+Команда собирает Horizon с экспериментальной опцией `arcana`. Эта тестовая сборка пока отключает вывод звука и поддержку контроллеров.
+
+## 4. Запустить отдельный тестовый мир
+
+```powershell
+.\arcana\dev.ps1 run
+```
+
+Скрипт создаёт новый каталог в `.local/arcana-runs/` и выводит его путь.
+Сохранения и настройки проверки находятся в этом каталоге.
+
+Чтобы выдать тестовому персонажу доступ к копью, откройте второй PowerShell в папке репозитория:
+
+```powershell
+.\target\fast\horizon-ctl.exe --socket "<каталог проверки>\control.json" arcana-demo
+```
+
+Замените `<каталог проверки>` путём, который вывел скрипт запуска.
+Сервер разрешает эту команду только оператору. Она выдаёт пятый уровень Огня, восстанавливает ману и сбрасывает перезарядки для проверки.
+
+| Действие | Клавиша |
+|---|---|
+| Применить «Солнечное копьё» | **V** |
+| Отменить подготовку | **X** |
+| Сменить вид камеры | **F5** |
+
+Подготовка копья длится 3,5 секунды. Отмена до выпуска возвращает ману и сохраняет перезарядку. После попадания сервер рассчитывает урон, а клиенты получают визуальное событие.
+
+## Настройки эффектов прототипа
+
+Задайте переменные перед запуском:
+
+```powershell
+$env:ARCANA_QUALITY = "high" # performance, high или cinematic
+$env:ARCANA_REDUCED_EFFECTS = "1" # уменьшить яркость; переменную можно не задавать
+.\arcana\dev.ps1 run
+```
+
+Профили используют бюджеты 4096 / 16384 / 49152 GPU-частиц. Это настройки текущего прототипа, а не гарантия производительности на любой видеокарте.
+
+## Проверка кода
+
+```powershell
+.\arcana\dev.ps1 test
+```
+
+Сейчас проходят 17 проверок Rust-ядра и VFX-модуля. Они проверяют каталог, прогрессию, ману, отмену, столкновения, события и шейдеры. Полная игровая проверка всех 76 способностей ещё не выполнена.
+
+## Что пока не готово
+
+- Исполнение остальных 75 способностей, ритуалы, предметы и интерфейс Arcana.
+- Полноценный PvP, сохранение прогресса адаптером Horizon и перенос Java-сохранений.
+- Скелетные анимации каста, формы, призывы и изменение территории.
+- Цветное освещение мира, distortion/refraction, trails, decals и кинематографичная камера.
+- Полная проверка мультиплеера, качества VFX и производительности на разных системах.
+
+Horizon остаётся самостоятельным исходным движком. Его оригинальная документация сохранена ниже для справки.
+
+<details>
+<summary>Оригинальная документация Horizon на английском языке</summary>
+
 <p align="center">
   <img src="docs/media/banner.webp" alt="Horizon: Minecraft: Java Edition 26.3, rewritten in Rust and checked against vanilla by more than 300 differential harnesses" width="100%">
 </p>
@@ -174,3 +286,5 @@ Third-party credits and licenses: [Third-party notices](THIRD_PARTY_NOTICES.md).
 ## Author
 
 Made by [Ludovic Marie](https://lu4ovic.com) ([@ludovic111](https://github.com/ludovic111)).
+
+</details>

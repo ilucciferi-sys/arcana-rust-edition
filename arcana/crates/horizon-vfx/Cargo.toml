@@ -1,0 +1,15 @@
+[package]
+name = "horizon-vfx"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license = "MIT"
+description = "Reusable GPU VFX extension for Horizon; no Arcana gameplay dependency"
+
+[dependencies]
+wgpu.workspace = true
+glam.workspace = true
+bytemuck.workspace = true
+
+[dev-dependencies]
+naga = { version = "30.0.1", features = ["wgsl-in", "hlsl-out", "spv-out"] }

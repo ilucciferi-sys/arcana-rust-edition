@@ -193,6 +193,11 @@ impl Game<'_> {
             super::agent::Handled::No => {}
         }
         match words[0] {
+            #[cfg(feature = "arcana")]
+            "arcana-demo" => {
+                self.arcana_send_demo();
+                ok()
+            }
             "help" => Ok(Some(json!({ "commands": HELP
                 .iter()
                 .chain(super::station_control::HELP)

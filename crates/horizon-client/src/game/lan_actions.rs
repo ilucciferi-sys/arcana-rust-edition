@@ -1420,6 +1420,21 @@ impl Game<'_> {
                 self.guest_carried_back(host, gi);
             }
             S::ChatCommand(c) => self.guest_chat_command(host, conn, &c.command),
+            #[cfg(feature = "arcana")]
+            S::CustomPayload(p) if p.channel == super::arcana::ACTION_CHANNEL => {
+                if p.data.len() <= arcana_core::network::MAX_PACKET {
+                    if let Ok(action) = serde_json::from_slice(&p.data) {
+                        self.as_guest(host, conn, |g| g.arcana_action(action));
+                    }
+                }
+                self.arcana_flush(host);
+            }
+            #[cfg(feature = "arcana")]
+            S::CustomPayload(p) if p.channel == super::arcana::DEMO_CHANNEL => {
+                if host.hub.guests[gi].permission >= 2 && p.data.is_empty() {
+                    self.as_guest(host, conn, |g| g.arcana_grant_demo());
+                }
+            }
             S::CustomPayload(p) if p.channel == horizon_protocol::quiet::CHANNEL => {
                 self.guest_quiet_commands(host, conn, &p.data)
             }
@@ -2223,6 +2238,12 @@ impl Game<'_> {
                 continue;
             };
             self.guest_sleep_tick(host, gi);
+            #[cfg(feature = "arcana")]
+            {
+                let alive = !host.hub.guests[gi].dead && !self.on_server_trip(conn);
+                self.as_guest(host, conn, |g| g.arcana_tick(alive));
+                self.arcana_flush(host);
+            }
             if host.hub.guests[gi].dead {
                 self.guest_tick_death(host, gi);
                 continue;

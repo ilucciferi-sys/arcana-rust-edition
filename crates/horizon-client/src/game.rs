@@ -5,6 +5,8 @@ mod advancements_screen;
 mod agent;
 mod agent_settings;
 mod allays;
+#[cfg(feature = "arcana")]
+mod arcana;
 mod armor_stands;
 mod banners;
 mod beacon;
@@ -1983,6 +1985,8 @@ struct Game<'a> {
     lan_acting_name: Option<String>,
     /// Their UUID (`Player.getUUID`).
     lan_acting_uuid: Option<u128>,
+    #[cfg(feature = "arcana")]
+    arcana: arcana::Runtime,
     /// Command feedback to forward to a guest.
     chat_capture: Option<Vec<horizon_client::text::Text>>,
     /// Packets for the guest acting now, sent once its action returns.
@@ -12022,6 +12026,13 @@ impl Game<'_> {
                 self.pitch,
             ),
         };
+        #[cfg(feature = "arcana")]
+        {
+            let effect = self.arcana_lance(camera);
+            if let Some(renderer) = &mut self.renderer {
+                renderer.set_energy_lance(effect);
+            }
+        }
         self.audio
             .set_listener([camera.x, camera.y, camera.z], view_yaw, view_pitch);
         let block = [
@@ -12523,6 +12534,19 @@ impl Game<'_> {
     }
     /// A key press while a world is open (keyboard or control socket).
     fn key_pressed(&mut self, key: KeyCode) -> Result<()> {
+        #[cfg(feature = "arcana")]
+        if self.screen == Screen::Playing && self.remote.is_some() && self.sleeping.is_none() {
+            if key == KeyCode::KeyV {
+                self.arcana_send(arcana_core::network::Action::Cast {
+                    spell_id: "solar_spear".into(),
+                });
+                return Ok(());
+            }
+            if key == KeyCode::KeyX {
+                self.arcana_send(arcana_core::network::Action::Cancel);
+                return Ok(());
+            }
+        }
         if self.sleeping.is_some()
             && self.screen == Screen::Playing
             && !matches!(
@@ -14526,6 +14550,8 @@ impl<'a> Game<'a> {
             guest_entity_events: Vec::new(),
             lan_acting_name: None,
             lan_acting_uuid: None,
+            #[cfg(feature = "arcana")]
+            arcana: Default::default(),
             chat_capture: None,
             admin_feedback: Vec::new(),
             console_broadcast: None,

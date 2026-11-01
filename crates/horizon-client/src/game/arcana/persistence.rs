@@ -110,6 +110,7 @@ impl Game<'_> {
                 dimension: dimension.into(),
                 effect: active.effect,
                 expired: true,
+                body: None,
             });
         }
         actor.school.lease = None;

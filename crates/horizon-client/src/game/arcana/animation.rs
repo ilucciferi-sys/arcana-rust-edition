@@ -27,11 +27,17 @@ impl Game<'_> {
             self.arcana.pose_dimension = self.dim.id().into();
         }
         self.arcana.poses.retain(|_, p| p.alive());
+        let forms = self.arcana_body_views();
         if let Some(m) = self.player_model.as_mut() {
             m.extra.cast_animation = self
                 .remote
                 .as_ref()
                 .and_then(|r| self.arcana.poses.get(&owner_words(r.profile())))
+                .cloned();
+            m.extra.fire_form = self
+                .remote
+                .as_ref()
+                .and_then(|r| forms.get(&owner_words(r.profile())))
                 .cloned();
         }
         for m in &mut self.mobs {
@@ -41,6 +47,12 @@ impl Game<'_> {
                     .uuids
                     .get(&m.id)
                     .and_then(|uuid| self.arcana.poses.get(uuid))
+                    .cloned();
+                m.extra.fire_form = self
+                    .persist
+                    .uuids
+                    .get(&m.id)
+                    .and_then(|uuid| forms.get(uuid))
                     .cloned();
             }
         }
@@ -66,15 +78,26 @@ impl Game<'_> {
         light: u32,
         out: &mut Vec<horizon_client::mesher::Vertex>,
     ) -> bool {
-        let Some(m) = self
-            .player_model
-            .as_ref()
-            .filter(|m| m.extra.cast_animation.as_ref().is_some_and(|p| p.alive()))
-        else {
+        let Some(m) = self.player_model.as_ref().filter(|m| {
+            m.extra.cast_animation.as_ref().is_some_and(|p| p.alive())
+                || mobs::fire_form::active(m).is_some()
+        }) else {
             return false;
         };
         if self.potions.effects.get("invisibility").is_some() {
             return false;
+        }
+        if m.extra.cast_animation.as_ref().is_none_or(|p| !p.alive()) {
+            let to_world = horizon_client::camera::view_matrix(self.yaw, self.pitch).inverse();
+            for left in [false, true] {
+                self.first_person_arm(
+                    left,
+                    to_world * horizon_client::first_person::player_arm_pose(left, 0.0, 0.0),
+                    light,
+                    out,
+                );
+            }
+            return true;
         }
         let (key, texture) = mobs::render::body(m);
         let model = m.kind.layer(&key).unwrap_or(&m.kind.model);
@@ -92,6 +115,16 @@ impl Game<'_> {
         );
         for part in ["head", "body", "left_leg", "right_leg"] {
             poses.visible(part, false);
+        }
+        let lookup = |name: &str| {
+            self.gui
+                .atlas
+                .sprites
+                .get(name)
+                .map(|r| [r.u0, r.v0, r.u1, r.v1])
+        };
+        if mobs::fire_form::render(m, model, base, &poses, &lookup, true, out) {
+            return true;
         }
         mobs::render::draw(
             model,

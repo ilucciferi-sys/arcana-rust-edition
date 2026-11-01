@@ -2,6 +2,8 @@
 //! textures, and a batch of textured quads in GUI pixels (vanilla's automatic
 //! GUI scale is applied when drawing).
 use crate::Result;
+#[cfg(feature = "arcana")]
+mod arcana;
 use horizon_assets::animation::AnimationMetadata;
 use std::{
     collections::{HashMap, HashSet},
@@ -488,6 +490,8 @@ impl HudAtlas {
         }
         if full {
             images.extend(atlas_sprites(root, &images));
+            #[cfg(feature = "arcana")]
+            images.extend(arcana::images(root)?);
         }
         // The title screen's "JAVA EDITION" banner reads "RUST EDITION".
         if let Some(edition) = images

@@ -48,12 +48,19 @@ impl Actor {
     }
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub(super) struct Body {
+    pub uuid: [i32; 4],
+    pub flying: bool,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(super) struct Visual {
     pub owner: u32,
     pub id: u64,
     pub dimension: String,
     pub effect: Effect,
     pub expired: bool,
+    #[serde(default)]
+    pub body: Option<Body>,
 }
 pub(super) struct Viewed {
     pub visual: Visual,
@@ -154,12 +161,22 @@ impl Game<'_> {
         })
     }
     fn arcana_school_visual(&mut self, id: u64, effect: &Effect, expired: bool) {
+        let uuid = self.acting_player_uuid();
+        // ElementBodyLayer follows active form effects, independently of the
+        // temporary flight lease (another form may have replaced that lease).
+        let body = !expired
+            && arcana_core::forms::Kind::from_spell(&effect.spell_id, effect.stage).is_some();
+        let body = body.then(|| Body {
+            uuid,
+            flying: self.player.as_ref().is_some_and(|p| p.flying),
+        });
         self.arcana.school.outbox.push(Visual {
             owner: self.lan_acting.unwrap_or(0),
             id,
             dimension: self.dim.id().into(),
             effect: effect.clone(),
             expired,
+            body,
         });
     }
     pub(super) fn arcana_release_school(
@@ -338,23 +355,30 @@ impl Game<'_> {
         }
     }
     fn arcana_start_flight(&mut self, actor: &mut super::Actor, id: u64) {
-        if let Some(old) = actor.school.lease.as_mut() {
-            old.id = id;
-            return;
-        }
         let Some(p) = self.player.as_mut() else {
             return;
         };
-        actor.school.lease = Some(Lease {
-            id,
-            may_fly: p.may_fly,
-            flying: p.flying,
-            speed: p.flying_speed,
-        });
+        if let Some(old) = actor.school.lease.as_mut() {
+            old.id = id;
+        } else {
+            actor.school.lease = Some(Lease {
+                id,
+                may_fly: p.may_fly,
+                flying: p.flying,
+                speed: p.flying_speed,
+            });
+        }
         p.may_fly = true;
         p.flying = true;
         p.flying_speed = 0.075;
         p.fall_distance = 0.0;
+        // MagicStatuses.fly: leave the ground before vanilla's landing rule
+        // can disable the just-granted flight. Keep the original lease flags.
+        if p.ground.on_ground {
+            p.ground.on_ground = false;
+            p.velocity.y += 0.3;
+            p.health.sync_velocity = true;
+        }
         self.arcana_abilities(true, true, 0.075);
     }
     fn arcana_end_flight(&mut self, actor: &mut super::Actor) {
@@ -527,6 +551,9 @@ impl Game<'_> {
             || !v.effect.end.is_finite()
             || v.effect.age > 2440
             || v.effect.life > 2440
+            || v.body.as_ref().is_some_and(|_| {
+                arcana_core::forms::Kind::from_spell(&v.effect.spell_id, v.effect.stage).is_none()
+            })
         {
             return;
         }

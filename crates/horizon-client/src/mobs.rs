@@ -35,6 +35,8 @@ pub mod enderman;
 pub mod equine;
 pub mod farm;
 pub mod finalize;
+#[cfg(feature = "arcana")]
+pub mod fire_form;
 pub mod fox;
 pub mod frog;
 pub mod gear;
@@ -739,6 +741,8 @@ pub struct Extra {
     /// Transient server-authoritative casting pose, never stored in vanilla NBT.
     #[cfg(feature = "arcana")]
     pub cast_animation: Option<cast_animation::Playback>,
+    #[cfg(feature = "arcana")]
+    pub fire_form: Option<fire_form::View>,
     /// The local player's `minecraft:scale`, which scales the whole model
     /// (`LivingEntityRenderState.scale`); 0 is the default, 1.
     pub model_scale: f32,

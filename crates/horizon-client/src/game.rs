@@ -10784,6 +10784,10 @@ impl Game<'_> {
     /// `left` or right arm with its skin at pose `m`, in its rest pose
     /// turned 0.1 radians outwards.
     fn first_person_arm(&self, left: bool, m: glam::Mat4, light: u32, out: &mut Vec<Vertex>) {
+        #[cfg(feature = "arcana")]
+        if self.arcana_form_arm(left, m, out) {
+            return;
+        }
         let slim = self.player_model.as_ref().is_some_and(|m| m.slim);
         let Some(arm) = self.res.player_arm(slim, left).as_ref() else {
             return;
@@ -12248,7 +12252,7 @@ impl Game<'_> {
         #[cfg(feature = "arcana")]
         if !title {
             self.arcana_starter_geometry(camera, &mut entities, &mut additive);
-            self.arcana_school_geometry(camera, &mut entities, &mut additive);
+            self.arcana_school_geometry(camera, alpha as f32, &mut entities, &mut additive);
             self.arcana_ritual_geometry(camera, &mut entities, &mut additive);
         }
         if !title && self.dim == Dim::End {

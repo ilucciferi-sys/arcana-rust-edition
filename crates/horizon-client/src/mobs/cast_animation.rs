@@ -62,7 +62,7 @@ fn catalog() -> &'static Catalog {
 fn quat(p: &[f32; 9]) -> Quat {
     Quat::from_euler(EulerRot::ZYX, p[5], p[4], p[3])
 }
-fn set_rotation(p: &mut [f32; 9], q: Quat) {
+pub(super) fn set_rotation(p: &mut [f32; 9], q: Quat) {
     let (z, y, x) = q.to_euler(EulerRot::ZYX);
     p[3..6].copy_from_slice(&[x, y, z]);
 }
@@ -178,6 +178,9 @@ pub fn apply(m: &Mob, s: &State, poses: &mut Poses) {
     let root_weight = weight * lower;
     let root_rotation = Quat::IDENTITY.slerp(root.rotation(), root_weight);
     let shift = root.position() * Vec3::new(-1.0, -1.0, 1.0) * root_weight;
+    apply_root(poses, root_rotation, shift);
+}
+pub(super) fn apply_root(poses: &mut Poses, root_rotation: Quat, shift: Vec3) {
     for name in [
         "body",
         "head",

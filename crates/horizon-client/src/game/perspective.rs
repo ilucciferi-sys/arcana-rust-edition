@@ -674,6 +674,10 @@ impl Game<'_> {
         light: u32,
         out: &mut Vec<horizon_client::mesher::Vertex>,
     ) {
+        #[cfg(feature = "arcana")]
+        if horizon_client::mobs::fire_form::active(m).is_some() {
+            return;
+        }
         let Some(asset) = chest
             .and_then(|item| self.res.items().get(item))
             .and_then(|i| i.equip_asset.as_ref())
@@ -727,6 +731,10 @@ impl Game<'_> {
         light: u32,
         out: &mut Vec<horizon_client::mesher::Vertex>,
     ) {
+        #[cfg(feature = "arcana")]
+        if horizon_client::mobs::fire_form::active(m).is_some() {
+            return;
+        }
         let Some(rect) = m
             .cape
             .as_deref()

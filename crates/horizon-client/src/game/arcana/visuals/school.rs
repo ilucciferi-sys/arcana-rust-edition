@@ -22,6 +22,7 @@ impl Game<'_> {
     pub(in crate::game) fn arcana_school_geometry(
         &self,
         camera: DVec3,
+        alpha: f32,
         solid: &mut Vec<Vertex>,
         glow: &mut Vec<Vertex>,
     ) {
@@ -39,6 +40,17 @@ impl Game<'_> {
         let gold = |a: f32| rgba(255, 206, 96, (a * intensity).clamp(0.0, 255.0) as u8);
         for v in self.arcana.school.views.values() {
             if v.visual.dimension != self.dim.id() {
+                continue;
+            }
+            // The owner's first-person material is drawn on the hands. The
+            // full world aura/wings would otherwise cover their camera.
+            if self.camera_type.first_person()
+                && v.visual.body.as_ref().is_some_and(|body| {
+                    self.remote
+                        .as_ref()
+                        .is_some_and(|r| super::super::owner_words(r.profile()) == body.uuid)
+                })
+            {
                 continue;
             }
             let e = &v.visual.effect;
@@ -364,7 +376,36 @@ impl Game<'_> {
                             at += Vec3::Y * 6.4 * elapsed.min(0.12);
                         }
                         let heading = dir.try_normalize().unwrap_or(Vec3::Z);
-                        let center = at + Vec3::Y * 1.3;
+                        let model = v
+                            .visual
+                            .body
+                            .as_ref()
+                            .and_then(|body| self.arcana_form_model(body.uuid));
+                        let center = model
+                            .and_then(|m| {
+                                horizon_client::mobs::render::part_transform(
+                                    m,
+                                    alpha,
+                                    camera,
+                                    self.res.mob_data(),
+                                    "body",
+                                )
+                            })
+                            .map_or(at + Vec3::Y * 1.3, |matrix| {
+                                matrix.transform_point3(Vec3::Y * 0.125)
+                            });
+                        let heading = if e.stage == 0 {
+                            model.map_or(heading, |m| {
+                                let yaw = (m.previous_body_yaw
+                                    + horizon_client::mobs::living::wrap(
+                                        m.body_yaw - m.previous_body_yaw,
+                                    ) * alpha)
+                                    .to_radians();
+                                Vec3::new(-yaw.sin(), 0.0, yaw.cos())
+                            })
+                        } else {
+                            heading
+                        };
                         super::phoenix::bird(
                             solid,
                             glow,
@@ -394,13 +435,14 @@ impl Game<'_> {
                 "fire_avatar" => {
                     for i in 0..detail * 2 {
                         let a = i as f32 * TAU / (detail * 2) as f32 + time * 1.4;
+                        let rise = (time * 0.8 + i as f32 / (detail * 2) as f32).fract();
                         flame(
                             glow,
-                            at + Vec3::new(a.cos() * 0.55, 0.0, a.sin() * 0.55),
-                            2.2 + 0.2 * (time * 8.0 + a).sin(),
-                            0.08,
+                            at + Vec3::new(a.cos() * 0.55, rise * 1.5, a.sin() * 0.55),
+                            0.45 + 0.2 * (time * 8.0 + a).sin().abs(),
+                            0.04,
                             texture,
-                            amber(100.0 * fade),
+                            amber(45.0 * fade * (1.0 - rise * 0.5)),
                             time + a,
                         );
                     }
@@ -413,7 +455,7 @@ impl Game<'_> {
                             0.7,
                             0.014,
                             texture,
-                            gold(125.0 * fade),
+                            gold(65.0 * fade),
                             time * (h + 0.5),
                         );
                     }

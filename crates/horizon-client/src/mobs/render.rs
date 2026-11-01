@@ -1356,6 +1356,10 @@ fn render_visible(
         .unwrap_or_else(|| m.kind.model.clone());
     let mut poses = Poses::new(&model);
     anim::setup(m, &s, &mut poses, &data.animations);
+    #[cfg(feature = "arcana")]
+    if super::fire_form::render(m, &model, base, &poses, atlas, body_visible, out) {
+        return;
+    }
     let draw_body = |out: &mut Vec<Vertex>| {
         if body_visible && let Some(uv) = atlas(&texture) {
             draw(

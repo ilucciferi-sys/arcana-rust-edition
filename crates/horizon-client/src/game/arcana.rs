@@ -2,6 +2,7 @@
 //! Necromantic awakening and legacy-save migration remain unavailable.
 mod animation;
 mod fire;
+mod forms;
 mod movement;
 mod persistence;
 mod pvp;
@@ -566,7 +567,7 @@ impl Game<'_> {
         );
         serde_json::json!({"snapshot":self.arcana.snapshot,"blocked_players":self.arcana.load_errors.len(),"ritual_visuals":self.arcana.ritual_views.len(),"spell_visuals":self.arcana.starter_views.values().map(|v| &v.message).collect::<Vec<_>>(),
             "server_projectiles":server_state.as_ref().map(|s|&s["projectiles"]),"server_fire":server_state,
-            "fire_fields":self.arcana.school.views.values().map(|v|&v.visual).collect::<Vec<_>>(),"flight":flight,"cast_poses":self.arcana_pose_debug(),
+            "fire_fields":self.arcana.school.views.values().map(|v|&v.visual).collect::<Vec<_>>(),"flight":flight,"cast_poses":self.arcana_pose_debug(),"body_forms":self.arcana_form_debug(),
             "owned_fire_cells":self.arcana.school.public_fire.get(self.dim.id()).map(|f|f.cells.len()).unwrap_or(0)})
     }
     pub(super) fn arcana_hud(&self, hud: &mut horizon_client::hud::HudBatch) {
@@ -662,6 +663,13 @@ impl Game<'_> {
                 && age < s.cast_time as f32
             {
                 format!("Подготовка {:.1} с", (s.cast_time as f32 - age) / 20.0)
+            } else if let Some(s) = spell
+                && age < (s.cast_time + s.channel_ticks()) as f32
+            {
+                format!(
+                    "Поддержание {:.1} с",
+                    ((s.cast_time + s.channel_ticks()) as f32 - age) / 20.0
+                )
             } else {
                 "Восстановление".into()
             }

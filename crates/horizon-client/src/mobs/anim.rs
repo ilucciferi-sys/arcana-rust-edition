@@ -648,6 +648,8 @@ pub fn setup(
 ) {
     setup_vanilla(m, s, p, w_anims);
     #[cfg(feature = "arcana")]
+    super::fire_form::apply(m, s, p);
+    #[cfg(feature = "arcana")]
     super::cast_animation::apply(m, s, p);
 }
 fn setup_vanilla(

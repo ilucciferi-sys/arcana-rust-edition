@@ -7,6 +7,7 @@ pub mod catalog;
 pub mod fire;
 pub mod fire_school;
 pub mod fire_terrain;
+pub mod forms;
 pub mod network;
 pub mod ritual;
 pub mod solar;

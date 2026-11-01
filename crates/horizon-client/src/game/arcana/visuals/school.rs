@@ -363,26 +363,19 @@ impl Game<'_> {
                         } else {
                             at += Vec3::Y * 6.4 * elapsed.min(0.12);
                         }
-                        let heading = if e.stage == 1 {
-                            dir.normalize_or_zero()
-                        } else {
-                            Vec3::Z
-                        };
-                        let right = heading.cross(Vec3::Y).normalize_or_zero();
+                        let heading = dir.try_normalize().unwrap_or(Vec3::Z);
                         let center = at + Vec3::Y * 1.3;
-                        for sign in [-1.0, 1.0] {
-                            for feather in 0..detail + 2 {
-                                let q = feather as f32 / (detail + 2) as f32;
-                                let root = center
-                                    + right * sign * (0.3 + q * 3.8)
-                                    + Vec3::Y * ((time * 7.0 + q * 2.0).sin() * 0.4 + q * 0.3);
-                                let tip = root - heading * (1.2 + q * 1.6) - Vec3::Y * q * 0.8;
-                                ribbon(glow, center, root, 0.06, texture, gold(150.0 * fade));
-                                flame(glow, tip, 0.9, 0.1, texture, amber(150.0 * fade), time + q);
-                                ribbon(glow, root, tip, 0.1, texture, amber(145.0 * fade));
-                            }
-                        }
-                        flame(glow, at, 2.3, 0.17, texture, gold(120.0 * fade), time);
+                        super::phoenix::bird(
+                            solid,
+                            glow,
+                            center,
+                            heading,
+                            time,
+                            e.stage == 1,
+                            detail,
+                            texture,
+                            fade * intensity,
+                        );
                         if e.stage == 1 {
                             for i in 1..=detail {
                                 flame(

@@ -1168,7 +1168,17 @@ fn draw_normals(
     // `skips` is a name lookup: ask once per part, not once per polygon. A part
     // hidden this way still draws its children, so only the polygons are gated.
     if !poses.skips(part) {
-        for poly in &part.polygons {
+        #[cfg(feature = "arcana")]
+        let deformed = poses
+            .bends
+            .get(&part.name)
+            .filter(|b| b.angle.abs() > 0.001)
+            .map(|b| super::cast_animation::deform(part, *b));
+        #[cfg(feature = "arcana")]
+        let polygons = deformed.as_deref().unwrap_or(&part.polygons);
+        #[cfg(not(feature = "arcana"))]
+        let polygons = &part.polygons;
+        for poly in polygons {
             let normal = poly.vertex_normal(normals);
             for v in poly.vertices {
                 let pos = m.transform_point3(glam::Vec3::new(v[0], v[1], v[2]) / 16.0);
@@ -1565,6 +1575,10 @@ fn hand_base(
         0.0
     };
     let mut t = part_matrix(model, base, poses, arm, offset)?;
+    #[cfg(feature = "arcana")]
+    if let Some(bend) = poses.bends.get(arm) {
+        t *= bend.hand();
+    }
     if m.species() == Species::Vex {
         // `VexModel.translateToHand`: the held item is drawn at 0.55 scale.
         t *= glam::Mat4::from_scale(glam::Vec3::splat(0.55));

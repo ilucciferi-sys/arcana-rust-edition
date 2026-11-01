@@ -91,6 +91,7 @@ impl Game<'_> {
             self.arcana.sequence += 1;
             self.arcana.outbox.push(super::Wire {
                 owner: conn,
+                uuid: Some(super::owner_words(uuid)),
                 dimension: dimension.into(),
                 event: arcana_core::network::ServerEvent {
                     protocol: arcana_core::network::PROTOCOL,

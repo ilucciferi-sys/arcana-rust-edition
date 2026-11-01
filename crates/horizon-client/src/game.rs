@@ -10853,6 +10853,10 @@ impl Game<'_> {
             eye[2].floor() as i32,
         );
         let packed = (u32::from(light >> 4) * 16) | ((u32::from(light & 15) * 16) << 8);
+        #[cfg(feature = "arcana")]
+        if self.arcana_cast_arms(a, packed, &mut out) {
+            return out;
+        }
         let shown = self.hands_to_render();
         let used_hand = self.used_hand();
         let spinning = self

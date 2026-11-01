@@ -104,6 +104,8 @@ impl AnimState {
 /// Part poses for one draw, keyed by part name.
 #[derive(Clone, Default)]
 pub struct Poses {
+    #[cfg(feature = "arcana")]
+    pub bends: HashMap<String, super::cast_animation::Bend>,
     map: HashMap<String, [f32; 9]>,
     dummy: [f32; 9],
     /// Parts with `skipDraw` set: their own cubes are not drawn, children are.
@@ -127,6 +129,8 @@ impl Poses {
             }
         }
         self.map.clear();
+        #[cfg(feature = "arcana")]
+        self.bends.clear();
         self.dummy = [0.0; 9];
         self.skipped.clear();
         self.hidden.clear();
@@ -642,6 +646,16 @@ pub fn setup(
     p: &mut Poses,
     w_anims: &HashMap<String, super::keyframes::Animation>,
 ) {
+    setup_vanilla(m, s, p, w_anims);
+    #[cfg(feature = "arcana")]
+    super::cast_animation::apply(m, s, p);
+}
+fn setup_vanilla(
+    m: &Mob,
+    s: &State,
+    p: &mut Poses,
+    w_anims: &HashMap<String, super::keyframes::Animation>,
+) {
     if super::body_anim::anim(m, s, p, w_anims) {
         return;
     }
@@ -936,6 +950,8 @@ mod flight_pose_tests {
                     dummy: [0.0; 9],
                     skipped: Default::default(),
                     hidden: Default::default(),
+                    #[cfg(feature = "arcana")]
+                    bends: Default::default(),
                 };
                 let arm = if right { "right_arm" } else { "left_arm" };
                 p.xrot("head", pitch);
@@ -982,6 +998,8 @@ mod flight_pose_tests {
             dummy: [0.0; 9],
             skipped: Default::default(),
             hidden: Default::default(),
+            #[cfg(feature = "arcana")]
+            bends: Default::default(),
         };
         let mut ground = make();
         let mut flight = make();
@@ -1023,6 +1041,8 @@ mod flight_pose_tests {
             dummy: [0.0; 9],
             skipped: Default::default(),
             hidden: Default::default(),
+            #[cfg(feature = "arcana")]
+            bends: Default::default(),
         };
         let same_angle = |a: f32, b: f32| ((a - b + PI).rem_euclid(PI * 2.0) - PI).abs() < 1e-5;
         let mut h = Hum::new(ArmPose::Empty, ArmPose::Empty);
@@ -1116,6 +1136,8 @@ mod flight_pose_tests {
             dummy: [0.0; 9],
             skipped: Default::default(),
             hidden: Default::default(),
+            #[cfg(feature = "arcana")]
+            bends: Default::default(),
         };
         let mut m = player();
         m.extra.main_hand = Some("minecraft:shield".into());
@@ -1137,6 +1159,8 @@ mod flight_pose_tests {
             dummy: [0.0; 9],
             skipped: Default::default(),
             hidden: Default::default(),
+            #[cfg(feature = "arcana")]
+            bends: Default::default(),
         };
         setup(&m, &state, &mut p, &HashMap::new());
         assert!((p.get("right_arm")[3] + PI / 10.0).abs() < 1e-6);

@@ -20,6 +20,8 @@ pub mod brain;
 pub mod breeze;
 pub mod camel;
 pub mod caravan;
+#[cfg(feature = "arcana")]
+pub mod cast_animation;
 pub mod control;
 pub mod copper_golem;
 pub mod creaking;
@@ -734,6 +736,9 @@ pub fn anger_left(anger_end: i64, game_time: i64) -> i32 {
 /// Species-specific persistent state (variants, colours, taming, ageing...).
 #[derive(Clone, Debug, Default)]
 pub struct Extra {
+    /// Transient server-authoritative casting pose, never stored in vanilla NBT.
+    #[cfg(feature = "arcana")]
+    pub cast_animation: Option<cast_animation::Playback>,
     /// The local player's `minecraft:scale`, which scales the whole model
     /// (`LivingEntityRenderState.scale`); 0 is the default, 1.
     pub model_scale: f32,

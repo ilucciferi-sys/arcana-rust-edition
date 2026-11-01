@@ -2,6 +2,7 @@
 //! Solar's high-density effects keep using the separate GPU VFX extension.
 mod fire;
 mod fireball;
+mod phoenix;
 mod school;
 use super::{Game, starters::VisualStage};
 use glam::{DVec3, Quat, Vec3};

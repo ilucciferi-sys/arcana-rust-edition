@@ -1,30 +1,9 @@
 //! CastProfiles movement modes: mobile, 38% speed, or fixed translation.
 use super::*;
 
-#[derive(Clone, Copy, Default, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-pub(in crate::game) enum Mode {
-    #[default]
-    Mobile,
-    Limited,
-    Rooted,
-}
-#[derive(Deserialize)]
-struct Binding {
-    mode: Mode,
-}
-#[derive(Deserialize)]
-struct Profiles {
-    bindings: HashMap<String, Binding>,
-}
+pub(in crate::game) use arcana_core::animation::Movement as Mode;
 pub(super) fn cast_mode(cast: Option<&CastEvent>, tick: u64) -> Mode {
-    static PROFILES: OnceLock<Profiles> = OnceLock::new();
-    let profiles = PROFILES.get_or_init(|| {
-        serde_json::from_str(include_str!(
-            "../../../../../arcana/assets/data/cast_animations.json"
-        ))
-        .expect("validated original cast profiles")
-    });
+    let profiles = arcana_core::animation::Library::bundled();
     let Some(cast) = cast else {
         return Mode::Mobile;
     };

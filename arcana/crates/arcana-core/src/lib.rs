@@ -1,6 +1,7 @@
 //! Arcana migration core: catalog, casting, starter combat and elemental rites.
 //! Unsupported spells fail closed before spending resources.
 #![forbid(unsafe_code)]
+pub mod animation;
 pub mod casting;
 pub mod catalog;
 pub mod fire;

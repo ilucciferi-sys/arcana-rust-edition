@@ -1,5 +1,6 @@
 //! Opt-in migration. Elemental awakening and combat run on the server.
 //! Necromantic awakening and legacy-save migration remain unavailable.
+mod animation;
 mod fire;
 mod movement;
 mod persistence;
@@ -64,6 +65,8 @@ struct Actor {
 #[derive(Serialize, Deserialize)]
 struct Wire {
     owner: u32,
+    #[serde(default)]
+    uuid: Option<[i32; 4]>,
     dimension: String,
     event: ServerEvent,
 }
@@ -92,6 +95,9 @@ pub(super) struct Runtime {
     ritual_views: HashMap<u32, rituals::Viewed>,
     school: school::Runtime,
     pvp: pvp::Runtime,
+    poses: HashMap<[i32; 4], horizon_client::mobs::cast_animation::Playback>,
+    pose_dimension: String,
+    pose_history: arcana_core::animation::CastHistory,
 }
 impl Default for Runtime {
     fn default() -> Self {
@@ -115,6 +121,9 @@ impl Default for Runtime {
             ritual_views: HashMap::new(),
             school: school::Runtime::default(),
             pvp: pvp::Runtime::default(),
+            poses: HashMap::new(),
+            pose_dimension: String::new(),
+            pose_history: arcana_core::animation::CastHistory::default(),
         }
     }
 }
@@ -207,7 +216,7 @@ impl Game<'_> {
     fn arcana_context(&self) -> Option<(DVec3, DVec3)> {
         let (eye, direction) = self.aim()?;
         let direction = DVec3::from_array(direction);
-        // Approximate the casting palm until the original skeletal clips are ported.
+        // Stable server origin; exact alignment with the animated palm is pending.
         let right = direction.cross(DVec3::Y).normalize_or_zero();
         Some((
             DVec3::from_array(eye) + direction * 0.55 + right * 0.3 - DVec3::Y * 0.3,
@@ -274,6 +283,7 @@ impl Game<'_> {
                         actor.dimension = self.dim.id().into();
                         if let Some((start, direction)) = context {
                             if spell_id != "solar_spear" {
+                                self.arcana_emit(event.clone(), None);
                                 self.arcana_starter_visual(
                                     event.cast_id,
                                     &spell_id,
@@ -400,6 +410,7 @@ impl Game<'_> {
                             || self.arcana_release_fire(&mut actor, &event, direction)
                             || self.arcana_release_starter(&mut actor, &event, start, direction)
                         {
+                            self.arcana_emit(event, None);
                             continue;
                         }
                         let caster = u64::from(self.lan_acting.unwrap_or(0));
@@ -437,6 +448,11 @@ impl Game<'_> {
             self.arcana_tick_school(&mut actor, tick);
         }
         actor.dirty |= actor.state != previous || checkpoint;
+        if tick.is_multiple_of(4)
+            && let Some(event) = actor.caster.status(tick)
+        {
+            self.arcana_emit(event, None);
+        }
         self.arcana_update_cast_motion(&mut actor, tick);
         if first_tick || tick.is_multiple_of(10) || checkpoint {
             self.arcana_send_snapshot(&actor, None);
@@ -477,6 +493,7 @@ impl Game<'_> {
         }
     }
     pub(super) fn arcana_client_tick(&mut self) {
+        self.arcana_pose_tick();
         self.arcana_school_client_tick();
         self.arcana.ritual_views.retain(|_, v| {
             v.received.elapsed().as_secs_f32() < if v.message.finished { 1.5 } else { 1.0 }
@@ -549,7 +566,7 @@ impl Game<'_> {
         );
         serde_json::json!({"snapshot":self.arcana.snapshot,"blocked_players":self.arcana.load_errors.len(),"ritual_visuals":self.arcana.ritual_views.len(),"spell_visuals":self.arcana.starter_views.values().map(|v| &v.message).collect::<Vec<_>>(),
             "server_projectiles":server_state.as_ref().map(|s|&s["projectiles"]),"server_fire":server_state,
-            "fire_fields":self.arcana.school.views.values().map(|v|&v.visual).collect::<Vec<_>>(),"flight":flight,
+            "fire_fields":self.arcana.school.views.values().map(|v|&v.visual).collect::<Vec<_>>(),"flight":flight,"cast_poses":self.arcana_pose_debug(),
             "owned_fire_cells":self.arcana.school.public_fire.get(self.dim.id()).map(|f|f.cells.len()).unwrap_or(0)})
     }
     pub(super) fn arcana_hud(&self, hud: &mut horizon_client::hud::HudBatch) {
@@ -675,8 +692,10 @@ impl Game<'_> {
     }
     fn arcana_emit(&mut self, cast: CastEvent, solar: Option<SolarOutcome>) {
         self.arcana.sequence += 1;
+        let uuid = self.acting_player_uuid();
         self.arcana.outbox.push(Wire {
             owner: self.lan_acting.unwrap_or(0),
+            uuid: Some(uuid),
             dimension: self.dim.id().into(),
             event: ServerEvent {
                 protocol: PROTOCOL,
@@ -760,6 +779,13 @@ impl Game<'_> {
             return;
         }
         let cast = &wire.event.cast;
+        if wire.dimension == self.dim.id() {
+            if self.arcana.pose_dimension != wire.dimension {
+                self.arcana.poses.clear();
+                self.arcana.pose_dimension = wire.dimension.clone();
+            }
+            self.arcana_pose_event(wire.uuid, cast);
+        }
         if cast.phase == Phase::Cancelled {
             self.arcana
                 .starter_views

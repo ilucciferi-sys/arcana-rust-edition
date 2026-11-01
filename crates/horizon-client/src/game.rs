@@ -12244,6 +12244,7 @@ impl Game<'_> {
         #[cfg(feature = "arcana")]
         if !title {
             self.arcana_starter_geometry(camera, &mut entities, &mut additive);
+            self.arcana_school_geometry(camera, &mut entities, &mut additive);
             self.arcana_ritual_geometry(camera, &mut entities, &mut additive);
         }
         if !title && self.dim == Dim::End {
@@ -12740,6 +12741,10 @@ impl Game<'_> {
     }
     /// A mouse button while playing (window or control socket).
     fn play_mouse(&mut self, button: MouseButton, pressed: bool) -> Result<()> {
+        #[cfg(feature = "arcana")]
+        if self.arcana_form_mouse(button, pressed) {
+            return Ok(());
+        }
         if self.sleeping.is_some() {
             return Ok(());
         }
@@ -13096,6 +13101,21 @@ impl ApplicationHandler for Game<'_> {
     }
     fn window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, mut event: WindowEvent) {
         if self.window.as_ref().is_none_or(|w| w.id() != id) {
+            return;
+        }
+        // Hidden harness windows are driven by their authenticated control
+        // socket. Focus-generated OS input must not move the test actors.
+        if self.options.offscreen
+            && self.options.control.is_some()
+            && matches!(
+                event,
+                WindowEvent::KeyboardInput { .. }
+                    | WindowEvent::MouseInput { .. }
+                    | WindowEvent::MouseWheel { .. }
+                    | WindowEvent::CursorMoved { .. }
+                    | WindowEvent::ModifiersChanged(_)
+            )
+        {
             return;
         }
         follow_keymap(&mut event);
@@ -14069,6 +14089,9 @@ impl ApplicationHandler for Game<'_> {
         }
     }
     fn device_event(&mut self, _: &ActiveEventLoop, _: DeviceId, event: DeviceEvent) {
+        if self.options.offscreen && self.options.control.is_some() {
+            return;
+        }
         if self.pending_save.is_none()
             && self.captured
             && self.focused

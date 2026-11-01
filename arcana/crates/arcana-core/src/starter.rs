@@ -12,6 +12,8 @@ pub enum BoltKind {
     Water,
     Stone,
     Fireball,
+    Meteor,
+    Empowered,
 }
 impl BoltKind {
     pub fn for_spell(id: &str) -> Option<Self> {
@@ -20,6 +22,7 @@ impl BoltKind {
             "water_bolt" => Some(Self::Water),
             "stone_bolt" => Some(Self::Stone),
             "fireball" => Some(Self::Fireball),
+            "meteor_rain" => Some(Self::Meteor),
             _ => None,
         }
     }
@@ -29,6 +32,8 @@ impl BoltKind {
             Self::Water => "water_bolt",
             Self::Stone => "stone_bolt",
             Self::Fireball => "fireball",
+            Self::Meteor => "meteor_rain",
+            Self::Empowered => "fireball_empowered",
         }
     }
 }
@@ -86,6 +91,13 @@ pub trait StarterWorld: CombatWorld {
     }
 }
 impl Bolt {
+    pub fn empowered(id: u64, position: DVec3, direction: DVec3) -> Result<Self, String> {
+        let catalog = crate::Catalog::bundled()?;
+        let mut bolt = Self::new(id, catalog.get("fireball").unwrap(), position, direction)?;
+        bolt.kind = BoltKind::Empowered;
+        bolt.velocity = direction * 1.35;
+        Ok(bolt)
+    }
     pub fn new(id: u64, spell: &Spell, position: DVec3, direction: DVec3) -> Result<Self, String> {
         let kind = BoltKind::for_spell(&spell.id).ok_or("not a starter projectile")?;
         if !position.is_finite()
@@ -146,12 +158,30 @@ impl Bolt {
         if victim.is_some() || block.is_some() {
             self.finished = true;
             self.position = end;
-            if self.kind == BoltKind::Fireball {
-                let blast = crate::fire::fireball_impact(world, caster, end, self.power)?;
+            if matches!(
+                self.kind,
+                BoltKind::Fireball | BoltKind::Meteor | BoltKind::Empowered
+            ) {
+                let xp = if self.kind == BoltKind::Empowered {
+                    crate::fire::empowered_impact(
+                        world,
+                        caster,
+                        end,
+                        if victim.is_some() {
+                            end
+                        } else {
+                            end - self.velocity.normalize_or_zero() * 0.04
+                        },
+                    )
+                } else if self.kind == BoltKind::Meteor {
+                    crate::fire::projectile_impact(world, caster, end, self.power, 4.0, 3.0)?.xp
+                } else {
+                    crate::fire::fireball_impact(world, caster, end, self.power)?.xp
+                };
                 return Ok(BoltStep::Impact {
                     position: end,
                     target: victim.map(|t| t.id),
-                    xp: blast.xp,
+                    xp,
                 });
             }
             let mut xp = 0;
@@ -160,7 +190,7 @@ impl Bolt {
                     BoltKind::Spark => 4.0,
                     BoltKind::Water => 3.0,
                     BoltKind::Stone => 6.0,
-                    BoltKind::Fireball => unreachable!(),
+                    BoltKind::Fireball | BoltKind::Meteor | BoltKind::Empowered => unreachable!(),
                 };
                 let style = if self.kind == BoltKind::Stone {
                     DamageStyle::Thrown
@@ -196,7 +226,9 @@ impl Bolt {
                                 );
                             }
                         }
-                        BoltKind::Fireball => unreachable!(),
+                        BoltKind::Fireball | BoltKind::Meteor | BoltKind::Empowered => {
+                            unreachable!()
+                        }
                     }
                 }
             } else if self.kind == BoltKind::Spark {
@@ -213,7 +245,7 @@ impl Bolt {
         match self.kind {
             BoltKind::Stone => self.velocity = (self.velocity - DVec3::Y * 0.035) * 0.995,
             BoltKind::Water => self.velocity *= 0.997,
-            BoltKind::Spark | BoltKind::Fireball => {}
+            BoltKind::Spark | BoltKind::Fireball | BoltKind::Meteor | BoltKind::Empowered => {}
         }
         Ok(BoltStep::Flying)
     }

@@ -1,5 +1,6 @@
 # Run the native launcher in a new profile root; never touch a player's profile.
 $ErrorActionPreference='Stop'
+$env:HORIZON_NO_AUDIO='1'
 $forkPath=Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $validationRoot=Join-Path $forkPath ('.local\starter-validation\'+[guid]::NewGuid().ToString('N'))
 $bin=Join-Path $validationRoot 'bin'
@@ -22,6 +23,15 @@ function Wait-Magic([string]$School) {
     }while([DateTime]::UtcNow -lt $until)
     throw "Magic snapshot not ready for $School"
 }
+function Select-Spell([string]$Spell) {
+    for($i=0;$i -lt 20;$i++) {
+        $status=Invoke-Game @('arcana-status')
+        if($status.snapshot.state.selected -eq $Spell){return}
+        Invoke-Game @('key','r','tap') | Out-Null
+        Start-Sleep -Milliseconds 80
+    }
+    throw "Spell was not selectable: $Spell"
+}
 function Start-Profile([string]$School) {
     $profile=Join-Path $env:ARCANA_PLAYER_ROOT $School
     $script:endpoint=Join-Path $profile 'control.json'
@@ -43,7 +53,7 @@ foreach($school in @('fire','water','earth','air')) {
         Invoke-Game @('look','0','0') | Out-Null
         $fire=if($school -eq 'water'){',Fire:200s'}else{''}
         Invoke-Game @('command',('summon minecraft:iron_golem 0 75 3 {NoAI:1b,PersistenceRequired:1b'+$fire+'}')) | Out-Null
-        if($school -eq 'fire'){Invoke-Game @('key','r','tap') | Out-Null;Start-Sleep -Milliseconds 150}
+        Select-Spell (@{fire='spark';water='water_bolt';earth='stone_bolt';air='wind_gust'}[$school])
         $before=Invoke-Game @('arcana-status')
         $before | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath (Join-Path $validationRoot ($school+'-magic-before.json'))
         Invoke-Game @('screenshot',(Join-Path $validationRoot ($school+'-hud.png'))) | Out-Null
@@ -74,11 +84,7 @@ foreach($school in @('fire','water','earth','air')) {
         $reports+=@{school=$school;health=$golem.health;burning=$golem.burning;xp=$after.snapshot.state.xp}
         if($school -eq 'fire') {
             Invoke-Game @('key','f8','tap') | Out-Null
-            for($i=0;$i -lt 12;$i++) {
-                if((Invoke-Game @('arcana-status')).snapshot.state.selected -eq 'solar_spear'){break}
-                Invoke-Game @('key','r','tap') | Out-Null;Start-Sleep -Milliseconds 100
-            }
-            if((Invoke-Game @('arcana-status')).snapshot.state.selected -ne 'solar_spear'){throw 'Could not select solar_spear'}
+            Select-Spell 'solar_spear'
             Invoke-Game @('key','v','tap') | Out-Null;Start-Sleep -Milliseconds 400;Invoke-Game @('key','x','tap') | Out-Null
             Start-Sleep -Milliseconds 150
         }

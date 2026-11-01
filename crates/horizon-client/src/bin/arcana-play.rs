@@ -37,7 +37,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             "--awakening" => school = Some("awakening".into()),
             "--help" | "-h" => {
                 println!(
-                    "Arcana: Rust Edition\narcana-play [--school fire|water|earth|air | --awakening]\nБез параметров: выбор профиля.\nПробуждение: пустые руки, Shift на центре построенного ритуала.\nV — каст, R — выбор, X — отмена. F8 — ресурсы в демонстрационных профилях."
+                    "Arcana: Rust Edition\narcana-play [--school fire|water|earth|air | --awakening]\nБез параметров: выбор профиля.\nПробуждение: пустые руки, Shift на центре построенного ритуала.\nV — каст, R — выбор, X — отмена. F8 — ресурсы в демонстрационных профилях.\nОгонь: Ctrl — рывок, ЛКМ в форме — усиленный шар, ПКМ — пикирование Феникса."
                 );
                 return Ok(());
             }
@@ -124,7 +124,6 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     }
     command
         .env("HORIZON_LAUNCHER_NO_SELF_UPDATE", "1")
-        .env("HORIZON_NO_AUDIO", "1")
         .env("HORIZON_NO_DISCORD", "1")
         .env_remove("ARCANA_DEMO_SCHOOL");
     if school != "awakening" {
@@ -154,6 +153,11 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         );
     } else {
         println!("V — заклинание, R — выбор, X — отмена, F8 — восстановить ману и перезарядки.");
+        if school == "fire" {
+            println!(
+                "Все 15 заклинаний Огня доступны через R. Ctrl — рывок; в форме ЛКМ — усиленный шар, ПКМ — пикирование Феникса; Пробел/Shift — полёт."
+            );
+        }
     }
     println!("Мир и прогресс: {}", profile.display());
     let status = command.status()?;
@@ -165,7 +169,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
 }
 fn choose_school() -> String {
     println!(
-        "Arcana: Rust Edition\n\nВыберите отдельный профиль:\n1 — Огонь (демонстрация)\n2 — Вода (демонстрация)\n3 — Земля (демонстрация)\n4 — Воздух (демонстрация)\n5 — Пробуждение (получите магию ритуалом)"
+        "Arcana: Rust Edition\n\nВыберите отдельный профиль:\n1 — Огонь (все 15 заклинаний)\n2 — Вода (демонстрация)\n3 — Земля (демонстрация)\n4 — Воздух (демонстрация)\n5 — Пробуждение (получите магию ритуалом)"
     );
     print!("Номер профиля [1]: ");
     let _ = io::stdout().flush();

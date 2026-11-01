@@ -261,6 +261,10 @@ pub enum MotionEvent {
     Drown,
 }
 pub struct PlayerMotion {
+    #[cfg(feature = "arcana")]
+    pub arcana_shield: bool,
+    #[cfg(feature = "arcana")]
+    pub arcana_fire_immune: bool,
     pub swimming: bool,
     pub fire_ticks: i32,
     pub air: i32,
@@ -527,6 +531,10 @@ impl PlayerMotion {
             dimensions: crate::pose::Pose::Standing.dimensions(1.0),
             swimming: false,
             fire_ticks: -20,
+            #[cfg(feature = "arcana")]
+            arcana_shield: false,
+            #[cfg(feature = "arcana")]
+            arcana_fire_immune: false,
             air: 300,
             respiration: 0,
             speed: 0.0,

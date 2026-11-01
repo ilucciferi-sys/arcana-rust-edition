@@ -136,6 +136,26 @@ impl MagicState {
     pub fn fill_mana(&mut self) {
         self.mana = self.max_mana();
     }
+    pub fn spend_mana(&mut self, amount: f64) -> bool {
+        if !amount.is_finite() || amount < 0.0 || self.mana + 1e-6 < amount {
+            return false;
+        }
+        self.mana = (self.mana - amount).max(0.0);
+        true
+    }
+    /// Server-only passive Fire dash. It has no casting reservation or mana cost.
+    pub fn passive_fire_dash(&mut self, idle: bool, available: bool) -> bool {
+        if !idle
+            || !available
+            || self.school != Some(School::Fire)
+            || !self.equipped("fire_dash")
+            || self.cooldown("fire_dash") > 0
+        {
+            return false;
+        }
+        self.reserve("fire_dash", 0.0, 60);
+        true
+    }
     pub fn restore_mana(&mut self, amount: f64) {
         if amount.is_finite() {
             self.mana = (self.mana + amount).clamp(0.0, self.max_mana());

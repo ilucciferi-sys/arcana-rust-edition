@@ -1,9 +1,14 @@
 //! Opt-in migration. Elemental awakening and combat run on the server.
-//! PvP, necromantic awakening and legacy-save migration remain unavailable.
+//! Necromantic awakening and legacy-save migration remain unavailable.
 mod fire;
+mod movement;
 mod persistence;
+mod pvp;
 mod rituals;
+pub(in crate::game) mod school;
+mod sound;
 mod starters;
+pub(in crate::game) mod terrain;
 mod visuals;
 use super::{Game, lan::LanHost};
 use arcana_core::{
@@ -53,6 +58,8 @@ struct Actor {
     bolts: Vec<starters::ActiveBolt>,
     ritual: arcana_core::ritual::Tracker,
     notice: Option<(String, u64)>,
+    school: school::Actor,
+    movement: movement::Mode,
 }
 #[derive(Serialize, Deserialize)]
 struct Wire {
@@ -83,6 +90,8 @@ pub(super) struct Runtime {
     starter_views: HashMap<(u32, u64), starters::Viewed>,
     ritual_outbox: Vec<rituals::Visual>,
     ritual_views: HashMap<u32, rituals::Viewed>,
+    school: school::Runtime,
+    pvp: pvp::Runtime,
 }
 impl Default for Runtime {
     fn default() -> Self {
@@ -104,6 +113,8 @@ impl Default for Runtime {
             starter_views: HashMap::new(),
             ritual_outbox: Vec::new(),
             ritual_views: HashMap::new(),
+            school: school::Runtime::default(),
+            pvp: pvp::Runtime::default(),
         }
     }
 }
@@ -112,6 +123,19 @@ fn core(v: Vec3) -> DVec3 {
 }
 fn native(v: DVec3) -> Vec3 {
     Vec3::new(v.x, v.y, v.z)
+}
+fn owner_uuid(words: [i32; 4]) -> u128 {
+    words
+        .into_iter()
+        .fold(0, |key, word| (key << 32) | u128::from(word as u32))
+}
+fn owner_words(key: u128) -> [i32; 4] {
+    [
+        (key >> 96) as i32,
+        (key >> 64) as i32,
+        (key >> 32) as i32,
+        key as i32,
+    ]
 }
 
 impl Game<'_> {
@@ -220,8 +244,20 @@ impl Game<'_> {
         let previous = actor.state.clone();
         let mut notice = None;
         match action {
+            Action::Extinguish { at } => self.arcana_extinguish(at),
+            Action::Dash | Action::Primary | Action::Secondary => {
+                self.arcana_school_action(&mut actor, &action, tick);
+            }
             Action::Sync => {}
             Action::Cast { spell_id } => {
+                if !self.arcana_school_permits(&actor, &spell_id) {
+                    self.arcana_send_snapshot(
+                        &actor,
+                        Some("Эффект уже активен или достигнут лимит эффектов.".into()),
+                    );
+                    self.arcana.actors.insert(uuid, actor);
+                    return;
+                }
                 let context = self.arcana_context();
                 let permission = CastPermission {
                     available: self.arcana_available(),
@@ -326,7 +362,9 @@ impl Game<'_> {
         let mut checkpoint = false;
         let previous = actor.state.clone();
         checkpoint |= self.arcana_tick_ritual(&mut actor, alive);
-        if !alive || !self.arcana_available() || actor.dimension != self.dim.id() {
+        self.arcana_tick_fire_terrain();
+        if !alive || actor.dimension != self.dim.id() {
+            self.arcana_stop_school(&mut actor);
             for active in actor.bolts.drain(..) {
                 self.arcana_starter_visual(
                     active.bolt.id,
@@ -344,6 +382,12 @@ impl Game<'_> {
             }
             actor.dimension = self.dim.id().into();
         } else {
+            if !self.arcana_available()
+                && let Some(e) = actor.caster.cancel(&mut actor.state, tick, true)
+            {
+                self.arcana_emit(e, None);
+                checkpoint = true;
+            }
             actor.state.tick(!actor.caster.idle());
             if let Ok(events) = actor.caster.advance(tick) {
                 for event in events {
@@ -352,26 +396,26 @@ impl Game<'_> {
                     if event.phase == Phase::Release
                         && let Some((start, direction)) = self.arcana_context()
                     {
-                        if self.arcana_release_fire(&mut actor, &event, direction)
+                        if self.arcana_release_school(&mut actor, &event)
+                            || self.arcana_release_fire(&mut actor, &event, direction)
                             || self.arcana_release_starter(&mut actor, &event, start, direction)
                         {
                             continue;
                         }
                         let caster = u64::from(self.lan_acting.unwrap_or(0));
                         let owner = self.acting_player_uuid();
+                        self.arcana_begin_hit(pvp::Rule::per_hit());
                         let mut world = PilotWorld { game: self, owner };
-                        // Terrain destruction is intentionally unavailable in the pilot;
-                        // the production adapter needs Arcana's breakSoft protection checks.
                         match solar::execute(
                             &mut world,
                             caster,
                             catalog().get(&event.spell_id).unwrap(),
                             start,
                             direction,
-                            false,
+                            true,
                         ) {
                             Ok(result) => {
-                                actor.state.add_xp(result.xp_awarded, catalog());
+                                self.arcana_finish_hit(&mut actor, result.xp_awarded);
                                 log::info!(
                                     "Arcana solar release: impact={}, end={:?}, xp={}",
                                     result.impacted,
@@ -380,15 +424,20 @@ impl Game<'_> {
                                 );
                                 outcome = Some(result);
                             }
-                            Err(e) => log::warn!("Arcana solar world rejected release: {e}"),
+                            Err(e) => {
+                                self.arcana_finish_hit(&mut actor, 0);
+                                log::warn!("Arcana solar world rejected release: {e}");
+                            }
                         }
                     }
                     self.arcana_emit(event, outcome);
                 }
             }
             self.arcana_tick_starters(&mut actor, tick);
+            self.arcana_tick_school(&mut actor, tick);
         }
         actor.dirty |= actor.state != previous || checkpoint;
+        self.arcana_update_cast_motion(&mut actor, tick);
         if first_tick || tick.is_multiple_of(10) || checkpoint {
             self.arcana_send_snapshot(&actor, None);
         }
@@ -405,6 +454,7 @@ impl Game<'_> {
             state: actor.state.clone(),
             cast: actor.caster.status(tick),
             ritual: actor.ritual.active().cloned(),
+            fire: actor.school.status(),
             notice: notice.or_else(|| {
                 actor
                     .notice
@@ -427,6 +477,7 @@ impl Game<'_> {
         }
     }
     pub(super) fn arcana_client_tick(&mut self) {
+        self.arcana_school_client_tick();
         self.arcana.ritual_views.retain(|_, v| {
             v.received.elapsed().as_secs_f32() < if v.message.finished { 1.5 } else { 1.0 }
         });
@@ -485,16 +536,21 @@ impl Game<'_> {
         });
     }
     pub(super) fn arcana_status(&self) -> serde_json::Value {
-        let projectiles = self.integrated.as_ref().and_then(|server| {
+        let server_state = self.integrated.as_ref().and_then(|server| {
             server.call(|game| {
-                game.arcana
-                    .actors
-                    .values()
-                    .map(|a| a.bolts.len())
-                    .sum::<usize>()
+                serde_json::json!({"projectiles":game.arcana.actors.values().map(|a|a.bolts.len()).sum::<usize>(),
+                    "projectile_states":game.arcana.actors.values().flat_map(|a|a.bolts.iter().map(|b|&b.bolt)).collect::<Vec<_>>(),
+                    "effects":game.arcana.actors.values().map(|a|a.school.effects.len()).sum::<usize>(),
+                    "fires":game.arcana.school.terrain.values().map(|s|s.fire.len()).sum::<usize>()})
             })
         });
-        serde_json::json!({"snapshot":self.arcana.snapshot,"blocked_players":self.arcana.load_errors.len(),"ritual_visuals":self.arcana.ritual_views.len(),"spell_visuals":self.arcana.starter_views.values().map(|v| &v.message).collect::<Vec<_>>(),"server_projectiles":projectiles})
+        let flight = self.player.as_ref().map(
+            |p| serde_json::json!({"may_fly":p.may_fly,"flying":p.flying,"speed":p.flying_speed}),
+        );
+        serde_json::json!({"snapshot":self.arcana.snapshot,"blocked_players":self.arcana.load_errors.len(),"ritual_visuals":self.arcana.ritual_views.len(),"spell_visuals":self.arcana.starter_views.values().map(|v| &v.message).collect::<Vec<_>>(),
+            "server_projectiles":server_state.as_ref().map(|s|&s["projectiles"]),"server_fire":server_state,
+            "fire_fields":self.arcana.school.views.values().map(|v|&v.visual).collect::<Vec<_>>(),"flight":flight,
+            "owned_fire_cells":self.arcana.school.public_fire.get(self.dim.id()).map(|f|f.cells.len()).unwrap_or(0)})
     }
     pub(super) fn arcana_hud(&self, hud: &mut horizon_client::hud::HudBatch) {
         if self.screen != super::Screen::Playing || self.ui.hide_gui {
@@ -631,7 +687,9 @@ impl Game<'_> {
             },
         });
     }
-    pub(super) fn arcana_flush(&mut self, host: &LanHost) {
+    pub(super) fn arcana_flush(&mut self, host: &mut LanHost) {
+        self.arcana_apply_player_hits(host);
+        self.arcana_school_flush(host);
         for visual in self.arcana.ritual_outbox.drain(..) {
             if let Ok(data) = serde_json::to_vec(&visual) {
                 let packet = C::CustomPayload(CustomPayload {
@@ -715,6 +773,19 @@ impl Game<'_> {
                 self.arcana.playback = None;
             }
         } else if let Some(solar) = wire.event.solar {
+            self.arcana_fire_sound(
+                wire.owner,
+                cast.cast_id,
+                if cast.phase == Phase::Preparation {
+                    0
+                } else {
+                    3
+                },
+                solar.start,
+            );
+            if solar.impacted && cast.phase != Phase::Preparation {
+                self.arcana_fire_sound(wire.owner, cast.cast_id, 2, solar.end);
+            }
             self.arcana.playback = Some(Playback {
                 owner: wire.owner,
                 cast_id: cast.cast_id,
@@ -797,7 +868,8 @@ impl CombatWorld for PilotWorld<'_, '_> {
     }
     fn hostile_targets(&self, _: u64, bounds: Bounds) -> Vec<Target> {
         let allies = self.game.player_allies();
-        self.game
+        let mut targets = self
+            .game
             .mobs
             .iter()
             .filter(|m| m.alive() && !allies.contains(&m.id) && m.extra.owner != Some(self.owner))
@@ -817,9 +889,20 @@ impl CombatWorld for PilotWorld<'_, '_> {
                     knockback_immune: false,
                 })
             })
-            .collect()
+            .collect::<Vec<_>>();
+        targets.extend(
+            self.game
+                .arcana_player_targets(owner_uuid(self.owner), bounds),
+        );
+        targets
     }
     fn damage(&mut self, _: u64, target: u64, amount: f64) -> bool {
+        if let Some(result) = self.game.arcana_queue_player(
+            target,
+            pvp::Operation::Damage(amount, arcana_core::starter::DamageStyle::Magic),
+        ) {
+            return result;
+        }
         let from = self
             .game
             .player
@@ -833,16 +916,25 @@ impl CombatWorld for PilotWorld<'_, '_> {
         else {
             return false;
         };
-        m.damage(
+        let damaged = m.damage(
             amount as f32,
             Damage {
                 kind: DamageKind::Magic,
                 attacker: Some(Who::Player),
                 from,
             },
-        )
+        );
+        self.game.arcana_mob_damage(damaged);
+        damaged
     }
     fn ignite(&mut self, target: u64, ticks: u32) {
+        if self
+            .game
+            .arcana_queue_player(target, pvp::Operation::Ignite(ticks, false))
+            .is_some()
+        {
+            return;
+        }
         if let Some(m) = self
             .game
             .mobs
@@ -853,6 +945,13 @@ impl CombatWorld for PilotWorld<'_, '_> {
         }
     }
     fn impulse(&mut self, target: u64, v: DVec3) {
+        if self
+            .game
+            .arcana_queue_player(target, pvp::Operation::Impulse(v))
+            .is_some()
+        {
+            return;
+        }
         if let Some(m) = self
             .game
             .mobs
@@ -861,9 +960,11 @@ impl CombatWorld for PilotWorld<'_, '_> {
         {
             m.velocity = Vec3::new(m.velocity.x + v.x, m.velocity.y + v.y, m.velocity.z + v.z);
             m.needs_sync = true;
+            self.game.arcana_mob_force();
         }
     }
-    fn break_soft_sphere(&mut self, _: u64, _: DVec3, _: f64) {
-        unreachable!("terrain modification is disabled in the migration pilot");
+    fn break_soft_sphere(&mut self, _: u64, at: DVec3, radius: f64) {
+        self.game
+            .arcana_break_soft(owner_uuid(self.owner), at, radius);
     }
 }

@@ -63,6 +63,9 @@ impl Game<'_> {
                 return Err("Не удалось сохранить прогресс Arcana".into());
             }
         }
+        for terrain in self.arcana.school.terrain.values_mut() {
+            terrain.save()?;
+        }
         Ok(())
     }
     pub(in crate::game) fn arcana_save_departing(&mut self, uuid: u128) {
@@ -99,6 +102,16 @@ impl Game<'_> {
             });
         }
         actor.bolts.clear();
+        for active in actor.school.effects.drain(..) {
+            self.arcana.school.outbox.push(super::school::Visual {
+                owner: conn,
+                id: active.id,
+                dimension: dimension.into(),
+                effect: active.effect,
+                expired: true,
+            });
+        }
+        actor.school.lease = None;
         // Successful saves already contain refunded, interrupted preparation.
         // Keep failed saves in memory for retry, but never resume a stale cast.
         if actor.dirty {

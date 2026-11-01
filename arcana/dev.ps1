@@ -20,7 +20,7 @@ Push-Location $forkPath
 try {
     switch ($Task) {
         'test' { & cargo test --manifest-path arcana/Cargo.toml; if ($LASTEXITCODE) { throw 'Tests failed' } }
-        'build' { & cargo build --profile fast -p horizon-client --no-default-features --features arcana --bins; if ($LASTEXITCODE) { throw 'Build failed' } }
+        'build' { & cargo build --profile fast -p horizon-client --no-default-features --features arcana,audio --bins; if ($LASTEXITCODE) { throw 'Build failed' } }
         'play' { & .\target\fast\arcana-play.exe; if ($LASTEXITCODE) { throw 'Game exited with an error' } }
         'audit' {
             $pythonExe = Join-Path $sourcePath '.tools\python312\python.exe'

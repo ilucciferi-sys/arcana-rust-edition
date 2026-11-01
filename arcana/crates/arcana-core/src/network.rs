@@ -12,6 +12,18 @@ pub enum Action {
     Select { spell_id: String },
     Cancel,
     Sync,
+    Dash,
+    Primary,
+    Secondary,
+    Extinguish { at: [i32; 3] },
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
+pub struct FireStatus {
+    pub shield: bool,
+    pub avatar: bool,
+    pub phoenix: bool,
+    pub flight: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -24,6 +36,8 @@ pub struct MagicSnapshot {
     pub notice: Option<String>,
     #[serde(default)]
     pub ritual: Option<crate::ritual::Activation>,
+    #[serde(default)]
+    pub fire: FireStatus,
 }
 impl MagicSnapshot {
     pub fn decode(bytes: &[u8], catalog: &crate::Catalog) -> Result<Self, String> {

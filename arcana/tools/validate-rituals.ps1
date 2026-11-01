@@ -1,5 +1,6 @@
 # Real server-thread input and world checks, always in new isolated profiles.
 $ErrorActionPreference='Stop'
+$env:HORIZON_NO_AUDIO='1'
 $forkPath=Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $validationRoot=Join-Path $forkPath ('.local\ritual-validation\'+[guid]::NewGuid().ToString('N'))
 $bin=Join-Path $validationRoot 'bin'

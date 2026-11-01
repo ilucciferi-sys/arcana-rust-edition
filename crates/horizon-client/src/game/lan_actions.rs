@@ -310,6 +310,11 @@ impl Game<'_> {
         // FireworkRocketItem.use boosts only a gliding player.
         motion.fall_flying = g.fall_flying;
         motion.invulnerable = motion.may_fly;
+        #[cfg(feature = "arcana")]
+        if self.arcana_has_flight(g.uuid) {
+            motion.may_fly = true;
+            motion.flying_speed = 0.075;
+        }
         let _ = motion.set_health(g.health, false);
         motion.health.food.food = g.food;
         motion.health.food.saturation = g.saturation;
@@ -690,6 +695,17 @@ impl Game<'_> {
         self.eye = eye.1;
         std::mem::swap(&mut self.player, &mut player);
         if let Some(mut m) = player {
+            #[cfg(feature = "arcana")]
+            {
+                g.arcana_may_fly = self.arcana_has_flight(g.uuid);
+                g.arcana_previous_flying = self.arcana_previous_flying(g.uuid);
+                g.arcana_rooted = self.arcana_rooted(g.uuid);
+                if g.arcana_may_fly {
+                    g.flying = m.flying;
+                } else if !g.may_fly() {
+                    g.flying = false;
+                }
+            }
             g.health = m.health.health();
             g.food = m.health.food.food;
             g.saturation = m.health.food.saturation;
@@ -1422,6 +1438,7 @@ impl Game<'_> {
             S::ChatCommand(c) => self.guest_chat_command(host, conn, &c.command),
             #[cfg(feature = "arcana")]
             S::CustomPayload(p) if p.channel == super::arcana::ACTION_CHANNEL => {
+                self.arcana_prepare_school(host);
                 if p.data.len() <= arcana_core::network::MAX_PACKET
                     && let Ok(action) = serde_json::from_slice(&p.data)
                 {
@@ -2247,6 +2264,7 @@ impl Game<'_> {
             #[cfg(feature = "arcana")]
             {
                 let alive = !host.hub.guests[gi].dead && !self.on_server_trip(conn);
+                self.arcana_prepare_school(host);
                 self.as_guest(host, conn, |g| g.arcana_tick(alive));
                 self.arcana_flush(host);
             }

@@ -273,6 +273,76 @@ fn fireball_flies_straight_and_expiry_never_explodes() {
     assert!(w.hits.is_empty());
 }
 #[test]
+fn empowered_fireball_hits_once_and_rewards_each_confirmed_victim() {
+    use arcana_core::starter::{Bolt, BoltStep};
+    let mut world = Arena {
+        targets: vec![
+            victim(1, 2.0, 0.0),
+            victim(2, 4.0, 0.0),
+            victim(3, 7.0, 0.0),
+        ],
+        ..Default::default()
+    };
+    let mut bolt = Bolt::empowered(9, DVec3::Y, DVec3::X).unwrap();
+    assert_eq!(bolt.velocity, DVec3::X * 1.35);
+    assert_eq!(
+        bolt.tick(&mut world, 99, DVec3::ZERO).unwrap(),
+        BoltStep::Flying
+    );
+    assert!(matches!(
+        bolt.tick(&mut world, 99, DVec3::ZERO).unwrap(),
+        BoltStep::Impact { xp: 8, .. }
+    ));
+    assert_eq!(world.hits, vec![(1, 20.0), (2, 20.0)]);
+    assert_eq!(world.burns, HashMap::from([(1, 160), (2, 160)]));
+    assert_eq!(world.impulses.len(), 2);
+    assert_eq!(world.patches[0].1, 4.0);
+    assert_eq!(
+        bolt.tick(&mut world, 99, DVec3::ZERO).unwrap(),
+        BoltStep::Expired
+    );
+    assert_eq!(world.hits.len(), 2);
+    world.reject_damage = true;
+    world.burns.clear();
+    world.impulses.clear();
+    assert_eq!(empowered_impact(&mut world, 99, DVec3::Y, DVec3::Y), 0);
+    assert!(world.burns.is_empty());
+    assert!(world.impulses.is_empty());
+}
+#[test]
+fn meteor_has_one_flat_sixteen_damage_blast_and_three_block_fire_patch() {
+    use arcana_core::starter::{Bolt, BoltKind, BoltStep};
+    let catalog = Catalog::bundled().unwrap();
+    let mut world = Arena {
+        targets: vec![victim(1, 5.0, 0.0)],
+        ..Default::default()
+    };
+    let mut bolt = Bolt::new(
+        11,
+        catalog.get("meteor_rain").unwrap(),
+        DVec3::new(5.0, 6.0, 0.0),
+        -DVec3::Y,
+    )
+    .unwrap();
+    bolt.velocity = -DVec3::Y * 0.8;
+    assert_eq!(bolt.kind, BoltKind::Meteor);
+    for _ in 0..10 {
+        if matches!(
+            bolt.tick(&mut world, 99, DVec3::ZERO).unwrap(),
+            BoltStep::Impact { xp: 4, .. }
+        ) {
+            break;
+        }
+    }
+    assert_eq!(world.hits, vec![(1, 16.0)]);
+    assert_eq!(world.patches.len(), 1);
+    assert_eq!(world.patches[0].1, 3.0);
+    assert_eq!(
+        bolt.tick(&mut world, 99, DVec3::ZERO).unwrap(),
+        BoltStep::Expired
+    );
+}
+#[test]
 fn fireball_unlocks_at_level_two_and_keeps_original_cost_and_cancellation() {
     use arcana_core::{
         School,

@@ -2159,7 +2159,7 @@ impl Hub {
                 // handlePlayerAbilities: the client flies only if it may.
                 S::PlayerAbilities(p) => {
                     let g = &mut self.guests[i];
-                    g.flying = p.flags & 2 != 0 && (g.creative() || g.spectator());
+                    g.flying = p.flags & 2 != 0 && g.may_fly();
                 }
                 S::MovePlayerPos(p) => {
                     self.move_player(i, Some([p.x, p.y, p.z]), None, p.flags, ctx, events);
@@ -2292,6 +2292,15 @@ impl Hub {
         }
         let to = pos.unwrap_or(g.position);
         let rot = rot.unwrap_or((g.yaw, g.pitch));
+        #[cfg(feature = "arcana")]
+        if g.arcana_rooted && !g.dead && !g.sleeping {
+            g.yaw = rot.0;
+            g.pitch = rot.1.clamp(-90.0, 90.0);
+            if let Some(p) = g.motion.as_mut() {
+                p.velocity = horizon_core::geometry::Vec3::ZERO;
+            }
+            return;
+        }
         self.position_change(i, to, rot, flags, ctx, events);
     }
 

@@ -17,8 +17,11 @@ REVIEWED = {
     "Rituals", "RitualPattern", "RitualActivation", "AwakeningRitual", "RitualEffectRenderer",
     "WorldMagic", "ArcaneFireBlock", "MagicStatuses", "FreezeState", "MagicEffectRenderer",
     "ElementProjectile", "ElementProjectileRenderer",
+    "ElementForms", "SpellVolumes", "CastMovement", "CastProfiles", "CastingAnimation",
 }
-PILOTS = {"solar_spear", "spark", "water_bolt", "stone_bolt", "wind_gust", "ignition", "fire_push", "fireball"}
+PILOTS = {"solar_spear", "spark", "water_bolt", "stone_bolt", "wind_gust", "ignition", "fire_push", "fireball",
+          "flame_wall", "flame_shield", "fire_dash", "fire_ring", "fire_blast", "inferno_beam",
+          "fire_storm", "phoenix_form", "meteor_rain", "fire_avatar"}
 
 def sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -75,7 +78,8 @@ def main():
     report = generate(args.source)
     if args.check:
         previous = json.loads(output.read_text(encoding="utf-8"))
-        if previous["files"] != report["files"]:
+        source_facts = lambda items: [{k: f[k] for k in ("path", "sha256", "bytes")} for f in items]
+        if source_facts(previous["files"]) != source_facts(report["files"]):
             raise SystemExit("Original Arcana source or resources changed since inventory")
     else:
         output.parent.mkdir(parents=True, exist_ok=True)

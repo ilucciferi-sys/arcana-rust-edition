@@ -110,6 +110,12 @@ pub struct Guest {
     pub sprinting: bool,
     pub fall_flying: bool,
     pub flying: bool,
+    #[cfg(feature = "arcana")]
+    pub arcana_may_fly: bool,
+    #[cfg(feature = "arcana")]
+    pub arcana_previous_flying: Option<bool>,
+    #[cfg(feature = "arcana")]
+    pub arcana_rooted: bool,
     pub sleeping: bool,
     /// `LivingEntity.DATA_LIVING_ENTITY_FLAGS`: 1 while using an item, 2 if
     /// it is in the off hand.
@@ -298,6 +304,12 @@ impl Guest {
             sprinting: false,
             fall_flying: false,
             flying: false,
+            #[cfg(feature = "arcana")]
+            arcana_may_fly: false,
+            #[cfg(feature = "arcana")]
+            arcana_previous_flying: None,
+            #[cfg(feature = "arcana")]
+            arcana_rooted: false,
             sleeping: false,
             living_flags: 0,
             bed: None,
@@ -411,6 +423,12 @@ impl Guest {
     pub fn spectator(&self) -> bool {
         self.game_mode == SPECTATOR
     }
+    pub fn may_fly(&self) -> bool {
+        let allowed = self.creative() || self.spectator();
+        #[cfg(feature = "arcana")]
+        let allowed = allowed || self.arcana_may_fly;
+        allowed
+    }
     /// PlayerAbilities flags (invulnerable, flying, may fly, instabuild).
     pub fn ability_flags(&self) -> i8 {
         let mut f = 0;
@@ -420,7 +438,7 @@ impl Guest {
         if self.flying || self.spectator() {
             f |= 2;
         }
-        if self.creative() || self.spectator() {
+        if self.may_fly() {
             f |= 4;
         }
         if self.creative() {

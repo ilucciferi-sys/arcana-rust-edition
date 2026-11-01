@@ -164,6 +164,10 @@ pub fn store(guest: &Guest, level: &mut Level) {
     level.game_mode = guest.game_mode;
     level.creative = guest.game_mode == 1;
     level.flying = guest.flying;
+    #[cfg(feature = "arcana")]
+    if let Some(previous) = guest.arcana_previous_flying {
+        level.flying = previous && (guest.creative() || guest.spectator());
+    }
     level.selected_slot = guest.selected as i32;
     level.spawn = guest.spawn.map(|s| [s[0] - 0.5, s[1], s[2] - 0.5]);
     level.respawn_elsewhere = guest.respawn_elsewhere.clone();

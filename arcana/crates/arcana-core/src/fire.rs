@@ -75,12 +75,30 @@ pub fn fireball_impact(
     at: DVec3,
     power: f64,
 ) -> Result<AreaOutcome, String> {
-    if !at.is_finite() || !power.is_finite() || power < 0.0 {
+    projectile_impact(world, caster, at, power, 3.0, 2.0)
+}
+/// Ordinary fire projectiles share hit rules; meteors use a four-block blast.
+pub fn projectile_impact(
+    world: &mut impl StarterWorld,
+    caster: u64,
+    at: DVec3,
+    power: f64,
+    radius: f64,
+    patch: f64,
+) -> Result<AreaOutcome, String> {
+    if !at.is_finite()
+        || !power.is_finite()
+        || power < 0.0
+        || !radius.is_finite()
+        || radius <= 0.0
+        || !patch.is_finite()
+        || patch < 0.0
+    {
         return Err("invalid fireball impact".into());
     }
     let query = Bounds {
-        min: at - DVec3::splat(3.0),
-        max: at + DVec3::splat(3.0),
+        min: at - DVec3::splat(radius),
+        max: at + DVec3::splat(radius),
     };
     let mut result = AreaOutcome {
         affected: 0,
@@ -89,7 +107,7 @@ pub fn fireball_impact(
         xp: 0,
     };
     for target in world.hostile_targets(caster, query) {
-        if target.position.distance_squared(at) > 9.0
+        if target.position.distance_squared(at) > radius * radius
             || !matches!(
                 world.clip_blocks(at + DVec3::Y * 0.2, target.bounds.center()),
                 Ok(None)
@@ -103,11 +121,44 @@ pub fn fireball_impact(
         result.damaged += u32::from(damaged);
         result.pushed += u32::from(pushed);
     }
-    world.ignite_patch(at, 2.0);
+    world.ignite_patch(at, patch);
     if result.damaged > 0 || result.pushed > 0 {
         result.xp = 4;
     }
     Ok(result)
+}
+
+pub fn empowered_impact(
+    world: &mut impl StarterWorld,
+    caster: u64,
+    at: DVec3,
+    sight: DVec3,
+) -> u32 {
+    let mut xp = 0;
+    let query = Bounds {
+        min: at - DVec3::splat(4.0),
+        max: at + DVec3::splat(4.0),
+    };
+    for t in world.hostile_targets(caster, query) {
+        if t.position.distance_squared(at) > 16.0
+            || !matches!(world.clip_blocks(sight, t.bounds.center()), Ok(None))
+        {
+            continue;
+        }
+        if world.damage_starter(caster, t.id, 20.0, DamageStyle::Magic) {
+            xp += 4;
+            world.ignite_at_least(t.id, 160);
+            if !t.knockback_immune {
+                let d = (t.position - at).normalize_or_zero();
+                world.impulse(
+                    t.id,
+                    DVec3::new(d.x * 1.1, 0.12 + d.y.max(0.0) * 1.1 * 0.35, d.z * 1.1),
+                );
+            }
+        }
+    }
+    world.ignite_patch(at, 4.0);
+    xp
 }
 pub fn ignite(
     world: &mut impl FireWorld,

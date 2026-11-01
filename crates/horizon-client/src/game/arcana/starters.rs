@@ -98,16 +98,24 @@ impl Game<'_> {
             };
             let owner = self.acting_player_uuid();
             let caster = u64::from(self.lan_acting.unwrap_or(0));
+            let mut rule = super::pvp::Rule::once();
+            rule.force_reward = false;
+            self.arcana_begin_hit(rule);
             let mut world = PilotWorld { game: self, owner };
             if let Ok(result) =
                 arcana_core::starter::gust(&mut world, caster, eye, direction, spell.range)
             {
-                actor.state.add_xp(result.xp, catalog());
+                if result.discarded > 0 {
+                    self.arcana_stable_reward();
+                }
+                self.arcana_finish_hit(actor, result.xp);
                 log::info!(
                     "Arcana gust: damaged={}, discarded={}",
                     result.damaged,
                     result.discarded
                 );
+            } else {
+                self.arcana_finish_hit(actor, 0);
             }
             self.arcana_starter_visual(
                 event.cast_id,
@@ -151,8 +159,25 @@ impl Game<'_> {
                 actor.bolts.push(active);
                 continue;
             }
+            let mut rule = if active.bolt.kind == BoltKind::Empowered {
+                super::pvp::Rule::per_hit()
+            } else {
+                super::pvp::Rule::once()
+            };
+            rule.gated = matches!(
+                active.bolt.kind,
+                BoltKind::Spark | BoltKind::Water | BoltKind::Stone | BoltKind::Empowered
+            );
+            self.arcana_begin_hit(rule);
             let mut world = PilotWorld { game: self, owner };
             let step = active.bolt.tick(&mut world, caster, caster_position);
+            self.arcana_finish_hit(
+                actor,
+                match &step {
+                    Ok(BoltStep::Impact { xp, .. }) => *xp,
+                    _ => 0,
+                },
+            );
             let bolt = &active.bolt;
             let direction = bolt.velocity.normalize_or_zero();
             match step {
@@ -171,11 +196,11 @@ impl Game<'_> {
                     actor.bolts.push(active);
                 }
                 Ok(BoltStep::Impact { xp, target, .. }) => {
-                    actor.state.add_xp(xp, catalog());
                     actor.dirty = true;
-                    let stage = if bolt.kind == BoltKind::Fireball {
-                        actor.notice =
-                            Some(("Огонь на земле пока не подключён.".into(), tick + 100));
+                    let stage = if matches!(
+                        bolt.kind,
+                        BoltKind::Fireball | BoltKind::Meteor | BoltKind::Empowered
+                    ) {
                         VisualStage::FireballImpact
                     } else {
                         VisualStage::Impact
@@ -228,12 +253,30 @@ impl Game<'_> {
             "ignition",
             "fire_push",
             "fireball",
+            "meteor_rain",
+            "fireball_empowered",
         ]
         .contains(&message.spell_id.as_str())
+            && !arcana_core::fire_school::supported(&message.spell_id)
         {
             return;
         }
         let key = (message.owner, message.cast_id);
+        if catalog()
+            .get(&message.spell_id)
+            .is_some_and(|s| s.school == School::Fire)
+            || message.spell_id == "fireball_empowered"
+        {
+            let cue = match message.stage {
+                VisualStage::Preparation => Some(0),
+                VisualStage::Flight | VisualStage::FirePush | VisualStage::Ignition => Some(1),
+                VisualStage::FireballImpact | VisualStage::Impact => Some(2),
+                _ => None,
+            };
+            if let Some(cue) = cue {
+                self.arcana_fire_sound(message.owner, message.cast_id, cue, message.position);
+            }
+        }
         if message.stage == VisualStage::Expired {
             self.arcana.starter_views.remove(&key);
         } else if self.arcana.starter_views.len() < 512
@@ -251,6 +294,12 @@ impl Game<'_> {
 }
 impl StarterWorld for PilotWorld<'_, '_> {
     fn damage_starter(&mut self, _: u64, id: u64, amount: f64, style: DamageStyle) -> bool {
+        if let Some(result) = self
+            .game
+            .arcana_queue_player(id, super::pvp::Operation::Damage(amount, style))
+        {
+            return result;
+        }
         let from = self
             .game
             .player
@@ -259,7 +308,7 @@ impl StarterWorld for PilotWorld<'_, '_> {
         let Some(m) = self.game.mobs.iter_mut().find(|m| u64::from(m.id) == id) else {
             return false;
         };
-        m.damage(
+        let damaged = m.damage(
             amount as f32,
             Damage {
                 kind: match style {
@@ -269,26 +318,57 @@ impl StarterWorld for PilotWorld<'_, '_> {
                 attacker: Some(Who::Player),
                 from,
             },
-        )
+        );
+        self.game.arcana_mob_damage(damaged);
+        damaged
     }
     fn ignite_at_least(&mut self, id: u64, ticks: u32) {
+        if self
+            .game
+            .arcana_queue_player(id, super::pvp::Operation::Ignite(ticks, true))
+            .is_some()
+        {
+            return;
+        }
         if let Some(m) = self.game.mobs.iter_mut().find(|m| u64::from(m.id) == id) {
             m.fire_ticks = m.fire_ticks.max(ticks as i32);
         }
     }
     fn clear_fire(&mut self, id: u64) {
+        if self
+            .game
+            .arcana_queue_player(id, super::pvp::Operation::Clear)
+            .is_some()
+        {
+            return;
+        }
         if let Some(m) = self.game.mobs.iter_mut().find(|m| u64::from(m.id) == id) {
             m.fire_ticks = 0;
         }
     }
     fn slow(&mut self, id: u64, ticks: u32) {
+        if self
+            .game
+            .arcana_queue_player(id, super::pvp::Operation::Slow(ticks))
+            .is_some()
+        {
+            return;
+        }
         if let Some(m) = self.game.mobs.iter_mut().find(|m| u64::from(m.id) == id) {
             m.add_effect("minecraft:slowness", ticks as i32, 0);
         }
     }
     fn thaw(&mut self, _: u64, _: f32) { /* Arcana's cold-state adapter arrives with the ice spells. */
     }
-    fn ignite_surface(&mut self, _: DVec3, _: DVec3) { /* Terrain ignition remains disabled until owned-fire protection is ported. */
+    fn ignite_surface(&mut self, at: DVec3, incoming: DVec3) {
+        self.game.arcana_ignite_cell(
+            owner_uuid(self.owner),
+            at - incoming.normalize_or_zero() * 0.04,
+        );
+    }
+    fn ignite_patch(&mut self, at: DVec3, radius: f64) -> u32 {
+        self.game
+            .arcana_ignite_patch(owner_uuid(self.owner), at, radius)
     }
     fn knockback_resistance(&self, id: u64) -> f64 {
         self.game

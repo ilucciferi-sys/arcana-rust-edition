@@ -331,7 +331,7 @@
         "ru.arcana.client.ClientMagicState",
         "ru.arcana.common.magic.animation.CastProfiles"
       ],
-      "review": "inventory_only"
+      "review": "partial_manual_review"
     },
     {
       "path": "src/main/java/ru/arcana/client/animation/CastMarkers.java",
@@ -1429,7 +1429,7 @@
         "net.minecraft.world.entity.player.Player",
         "ru.arcana.registry.ArcanaRegistry"
       ],
-      "review": "inventory_only"
+      "review": "partial_manual_review"
     },
     {
       "path": "src/main/java/ru/arcana/common/magic/animation/CastProfiles.java",
@@ -1443,7 +1443,7 @@
         "java.util.*",
         "ru.arcana.common.magic.spell.Spell"
       ],
-      "review": "inventory_only"
+      "review": "partial_manual_review"
     },
     {
       "path": "src/main/java/ru/arcana/common/magic/animation/HandKinematics.java",
@@ -2072,7 +2072,7 @@
         "ru.arcana.common.magic.spell.entity.*",
         "ru.arcana.util.Ids"
       ],
-      "review": "inventory_only"
+      "review": "partial_manual_review"
     },
     {
       "path": "src/main/java/ru/arcana/common/magic/spell/runtime/FireSpells.java",
@@ -2227,7 +2227,7 @@
       "imports": [
         "net.minecraft.world.phys.*"
       ],
-      "review": "inventory_only"
+      "review": "partial_manual_review"
     },
     {
       "path": "src/main/java/ru/arcana/common/magic/spell/runtime/WorldMagic.java",
@@ -4942,72 +4942,72 @@
       "school": "fire",
       "mechanic": "WALL",
       "definition": "byte_identical",
-      "logic": "pending",
-      "game_verification": "pending"
+      "logic": "host_pilot",
+      "game_verification": "native_mob_pilot"
     },
     {
       "id": "flame_shield",
       "school": "fire",
       "mechanic": "SHIELD",
       "definition": "byte_identical",
-      "logic": "pending",
-      "game_verification": "pending"
+      "logic": "host_pilot",
+      "game_verification": "native_mob_pilot"
     },
     {
       "id": "fire_dash",
       "school": "fire",
       "mechanic": "DASH",
       "definition": "byte_identical",
-      "logic": "pending",
-      "game_verification": "pending"
+      "logic": "host_pilot",
+      "game_verification": "native_mob_pilot"
     },
     {
       "id": "fire_ring",
       "school": "fire",
       "mechanic": "RING",
       "definition": "byte_identical",
-      "logic": "pending",
-      "game_verification": "pending"
+      "logic": "host_pilot",
+      "game_verification": "native_mob_pilot"
     },
     {
       "id": "fire_blast",
       "school": "fire",
       "mechanic": "BLAST",
       "definition": "byte_identical",
-      "logic": "pending",
-      "game_verification": "pending"
+      "logic": "host_pilot",
+      "game_verification": "native_mob_pilot"
     },
     {
       "id": "inferno_beam",
       "school": "fire",
       "mechanic": "BEAM",
       "definition": "byte_identical",
-      "logic": "pending",
-      "game_verification": "pending"
+      "logic": "host_pilot",
+      "game_verification": "native_mob_pilot"
     },
     {
       "id": "fire_storm",
       "school": "fire",
       "mechanic": "TORNADO",
       "definition": "byte_identical",
-      "logic": "pending",
-      "game_verification": "pending"
+      "logic": "host_pilot",
+      "game_verification": "native_mob_pilot"
     },
     {
       "id": "phoenix_form",
       "school": "fire",
       "mechanic": "PHOENIX",
       "definition": "byte_identical",
-      "logic": "pending",
-      "game_verification": "pending"
+      "logic": "host_pilot",
+      "game_verification": "native_mob_pilot"
     },
     {
       "id": "meteor_rain",
       "school": "fire",
       "mechanic": "METEORS",
       "definition": "byte_identical",
-      "logic": "pending",
-      "game_verification": "pending"
+      "logic": "host_pilot",
+      "game_verification": "native_mob_pilot"
     },
     {
       "id": "solar_spear",
@@ -5022,8 +5022,8 @@
       "school": "fire",
       "mechanic": "AVATAR",
       "definition": "byte_identical",
-      "logic": "pending",
-      "game_verification": "pending"
+      "logic": "host_pilot",
+      "game_verification": "native_mob_pilot"
     },
     {
       "id": "water_bolt",

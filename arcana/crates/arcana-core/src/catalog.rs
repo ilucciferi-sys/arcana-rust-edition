@@ -55,6 +55,7 @@ impl Spell {
             || self.id == "ignition" && self.mechanic == "IGNITE"
             || self.id == "fire_push" && self.mechanic == "PUSH"
             || self.id == "fireball" && self.mechanic == "PROJECTILE"
+            || self.school == School::Fire && crate::fire_school::supported(&self.id)
             || ["spark", "water_bolt", "stone_bolt", "wind_gust"].contains(&self.id.as_str())
                 && self.mechanic == "STARTER"
     }

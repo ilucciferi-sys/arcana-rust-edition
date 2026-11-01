@@ -232,6 +232,10 @@ impl Game<'_> {
         };
         let refused = !(self.ui.rules.bool("pvp")
             && horizon_client::scoreboard::teams_allow_damage(target.as_ref(), attacker.as_ref()));
+        #[cfg(feature = "arcana")]
+        if !refused {
+            self.arcana_reflect_strike(&mut host, victim, p.guest);
+        }
         let on_player = Hit::Entity {
             who: Who::Player,
             at,
@@ -268,6 +272,10 @@ impl Game<'_> {
                 .and_then(|g| self.score.board.players_team(&g.name)),
         };
         let harm = horizon_client::scoreboard::teams_allow_damage(team, s.team.as_ref());
+        #[cfg(feature = "arcana")]
+        if harm {
+            self.arcana_reflect_strike(host, victim, s.attacker);
+        }
         if s.knockback_attack {
             self.audio.play(
                 "minecraft:entity.player.attack.knockback",

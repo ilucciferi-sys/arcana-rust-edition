@@ -2,6 +2,7 @@
 //! Solar's high-density effects keep using the separate GPU VFX extension.
 mod fire;
 mod fireball;
+mod school;
 use super::{Game, starters::VisualStage};
 use glam::{DVec3, Quat, Vec3};
 use horizon_client::{
@@ -311,11 +312,17 @@ impl Game<'_> {
             if fire::draw(m, at, elapsed, time, texture, glow) {
                 continue;
             }
-            if fireball::draw(m, at, elapsed, time, texture, glow) {
+            if fireball::draw(m, at, elapsed, time, texture, solid, glow) {
                 continue;
             }
             let color = match m.spell_id.as_str() {
                 "spark" => rgba(255, 105, 20, 170),
+                id if super::catalog()
+                    .get(id)
+                    .is_some_and(|s| s.school == arcana_core::School::Fire) =>
+                {
+                    rgba(255, 105, 20, 150)
+                }
                 "water_bolt" => rgba(60, 180, 245, 165),
                 "stone_bolt" => rgba(205, 180, 110, 130),
                 _ => rgba(220, 230, 235, 100),

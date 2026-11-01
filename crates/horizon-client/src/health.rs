@@ -332,6 +332,18 @@ impl PlayerMotion {
             .damage
             .source::<()>(source, None, None, None)
             .ok_or("unknown resident damage source")?;
+        #[cfg(feature = "arcana")]
+        let amount = {
+            if self.arcana_fire_immune && source.in_tag("minecraft:is_fire") {
+                self.fire_ticks = -20;
+                return Ok(BlockOutcome::default());
+            }
+            arcana_core::fire_school::shield_damage(
+                amount,
+                self.arcana_shield,
+                source.in_tag("minecraft:bypasses_invulnerability"),
+            )
+        };
         let armor = self.attribute("minecraft:armor").unwrap_or(0.0) as f32;
         let toughness = self.attribute("minecraft:armor_toughness").unwrap_or(0.0) as f32;
         let before = self.health.health() + self.health.absorption();

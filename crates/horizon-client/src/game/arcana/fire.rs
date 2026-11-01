@@ -21,11 +21,14 @@ impl Game<'_> {
         let caster = u64::from(self.lan_acting.unwrap_or(0));
         let owner = self.acting_player_uuid();
         let spell = catalog().get(&event.spell_id).unwrap();
+        let mut rule = super::pvp::Rule::once();
+        rule.terrain = event.spell_id == "ignition";
+        self.arcana_begin_hit(rule);
         let mut world = PilotWorld { game: self, owner };
         if event.spell_id == "ignition" {
             match arcana_core::fire::ignite(&mut world, caster, spell, position, eye, direction) {
                 Ok(result) => {
-                    actor.state.add_xp(result.xp, catalog());
+                    self.arcana_finish_hit(actor, result.xp);
                     if result.surface_hit && !result.surface_ignited {
                         actor.notice = Some((
                             "Поджигание блоков пока недоступно.".into(),
@@ -49,12 +52,15 @@ impl Game<'_> {
                         VisualStage::Ignition,
                     );
                 }
-                Err(error) => log::warn!("Arcana ignition rejected: {error}"),
+                Err(error) => {
+                    self.arcana_finish_hit(actor, 0);
+                    log::warn!("Arcana ignition rejected: {error}");
+                }
             }
         } else {
             match arcana_core::fire::push(&mut world, caster, spell, position, eye, direction) {
                 Ok(result) => {
-                    actor.state.add_xp(result.xp, catalog());
+                    self.arcana_finish_hit(actor, result.xp);
                     log::info!(
                         "Arcana fire_push: affected={}, damaged={}, pushed={}, xp={}",
                         result.affected,
@@ -72,16 +78,21 @@ impl Game<'_> {
                         VisualStage::FirePush,
                     );
                 }
-                Err(error) => log::warn!("Arcana fire_push rejected: {error}"),
+                Err(error) => {
+                    self.arcana_finish_hit(actor, 0);
+                    log::warn!("Arcana fire_push rejected: {error}");
+                }
             }
         }
         true
     }
 }
 impl arcana_core::fire::FireWorld for PilotWorld<'_, '_> {
-    fn ignite_ray(&mut self, _: DVec3, _: DVec3, _: f64) -> bool {
-        // ArcaneFireBlock attaches to stone, retains ownership and respects place
-        // hooks. Vanilla fire cannot substitute for that not-yet-ported block.
-        false
+    fn ignite_ray(&mut self, eye: DVec3, direction: DVec3, range: f64) -> bool {
+        let Ok(Some(hit)) = self.clip_blocks(eye, eye + direction * range) else {
+            return false;
+        };
+        self.game
+            .arcana_ignite_cell(owner_uuid(self.owner), hit - direction * 0.04)
     }
 }

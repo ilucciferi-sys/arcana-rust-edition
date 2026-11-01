@@ -1823,6 +1823,14 @@ impl Game<'_> {
     fn handle_packet(&mut self, packet: C) -> Result<()> {
         match packet {
             #[cfg(feature = "arcana")]
+            C::CustomPayload(p) if p.channel == super::arcana::terrain::CHANNEL => {
+                self.arcana_receive_fire_terrain(&p.data);
+            }
+            #[cfg(feature = "arcana")]
+            C::CustomPayload(p) if p.channel == super::arcana::school::CHANNEL => {
+                self.arcana_receive_school(&p.data);
+            }
+            #[cfg(feature = "arcana")]
             C::CustomPayload(p) if p.channel == super::arcana::RITUAL_CHANNEL => {
                 self.arcana_receive_ritual(&p.data);
             }
@@ -3892,6 +3900,8 @@ impl Game<'_> {
             return Ok(());
         }
         let playing = self.screen == Screen::Playing;
+        #[cfg(feature = "arcana")]
+        let arcana_rooted = playing && self.arcana_client_cast_rooted();
         let held = |k| playing && self.keys.contains(&k);
         let keys = Keys {
             forward: held(KeyCode::KeyW),
@@ -3904,6 +3914,8 @@ impl Game<'_> {
             analog: None,
         }
         .with_stick(stick.filter(|_| playing));
+        #[cfg(feature = "arcana")]
+        let keys = if arcana_rooted { Keys::default() } else { keys };
         let input = u8::from(keys.forward)
             | u8::from(keys.backward) << 1
             | u8::from(keys.left) << 2
@@ -3959,6 +3971,11 @@ impl Game<'_> {
                 resources: self.motion,
             }
             .controlled_simulation_tick_with_sprint_window(keys, sprint_window)?;
+            #[cfg(feature = "arcana")]
+            if arcana_rooted {
+                player.position = Vec3::new(before.2[0], before.2[1], before.2[2]);
+                player.velocity = Vec3::ZERO;
+            }
         } else {
             // LivingEntity.baseTick counts hurtTime down for a dead or riding
             // player too (controlled_simulation_tick does it otherwise): left

@@ -9,11 +9,55 @@ pub(super) fn draw(
     elapsed: f32,
     time: f32,
     texture: Rect,
+    solid: &mut Vec<Vertex>,
     glow: &mut Vec<Vertex>,
 ) -> bool {
-    if m.spell_id != "fireball" {
+    if !matches!(
+        m.spell_id.as_str(),
+        "fireball" | "fireball_empowered" | "meteor_rain"
+    ) {
         return false;
     }
+    let begin = glow.len();
+    let result = draw_body(m, at, elapsed, time, texture, glow);
+    if m.spell_id == "meteor_rain" && m.stage == VisualStage::Flight {
+        cube(
+            solid,
+            at,
+            0.46,
+            Quat::from_euler(glam::EulerRot::XYZ, time * 2.1, time * 1.7, time),
+            texture,
+            rgba(68, 31, 12, 255),
+        );
+    }
+    let scale = if m.stage == VisualStage::FireballImpact {
+        if m.spell_id == "fireball" {
+            1.0
+        } else {
+            4.0 / 3.0
+        }
+    } else {
+        match m.spell_id.as_str() {
+            "meteor_rain" => 8.0 / 2.8,
+            "fireball_empowered" => 1.5,
+            _ => 1.0,
+        }
+    };
+    if scale != 1.0 {
+        for v in &mut glow[begin..] {
+            v.pos = (at + (Vec3::from_array(v.pos) - at) * scale).to_array();
+        }
+    }
+    result
+}
+fn draw_body(
+    m: &StarterVisual,
+    at: Vec3,
+    elapsed: f32,
+    time: f32,
+    texture: Rect,
+    glow: &mut Vec<Vertex>,
+) -> bool {
     let reduced = std::env::var_os("ARCANA_REDUCED_EFFECTS").is_some();
     let intensity = if reduced { 0.45 } else { 1.0 };
     let amber = |a: f32| rgba(255, 85, 15, (a * intensity) as u8);

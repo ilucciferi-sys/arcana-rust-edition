@@ -4,6 +4,8 @@
 pub mod casting;
 pub mod catalog;
 pub mod fire;
+pub mod fire_school;
+pub mod fire_terrain;
 pub mod network;
 pub mod ritual;
 pub mod solar;

@@ -64,6 +64,7 @@ pub struct Heard {
 pub struct MixerBackend {
     mixer: Arc<Mutex<Mixer>>,
     root: PathBuf,
+    namespace_roots: HashMap<String, PathBuf>,
     cache: Arc<Mutex<SoundCache>>,
     /// The decoder thread for static sounds, started with the first one.
     decoder: Option<std::sync::mpsc::Sender<Decode>>,
@@ -269,7 +270,10 @@ impl Backend for MixerBackend {
             return;
         }
         let (namespace, path) = sound.path();
-        let file = self.root.join("assets").join(namespace).join(&path);
+        let file = self.namespace_roots.get(namespace).map_or_else(
+            || self.root.join("assets").join(namespace).join(&path),
+            |root| root.join(&path),
+        );
         if sound.stream {
             // A streamed sound loops by restarting its stream.
             let mixer = self.mixer.clone();
@@ -620,6 +624,7 @@ impl Audio {
             backend: MixerBackend {
                 mixer,
                 root: root.to_owned(),
+                namespace_roots: HashMap::new(),
                 cache: Arc::default(),
                 decoder: None,
                 next: 0,
@@ -790,6 +795,26 @@ impl Audio {
         let mut cache = self.backend.cache.lock().unwrap();
         cache.entries.clear();
         cache.bytes = 0;
+        drop(cache);
+        let roots = self.backend.namespace_roots.clone();
+        for (namespace, path) in roots {
+            let _ = self.register_namespace(&namespace, &path);
+        }
+    }
+    /// Add an author-owned resource namespace without copying it into the
+    /// player's prepared vanilla files. SoundEngine keeps the usual mixer,
+    /// streaming, attenuation, subtitles and per-source sound controls.
+    pub fn register_namespace(&mut self, namespace: &str, directory: &Path) -> Result<()> {
+        let text = fs::read(directory.join("sounds.json"))?;
+        self.engine
+            .registry
+            .add_file(namespace, &text, &|ns, path| {
+                ns == namespace && directory.join(path).is_file()
+            });
+        self.backend
+            .namespace_roots
+            .insert(namespace.to_string(), directory.to_path_buf());
+        Ok(())
     }
     /// Play a sound event at a world position, as `ClientLevel.playLocalSound`
     /// (a `SimpleSoundInstance` seeded from the level random), or relative to
@@ -959,6 +984,65 @@ impl Sounds for Audio {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "arcana")]
+    #[test]
+    fn arcana_namespace_decodes_original_fire_sounds_without_an_output_device() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .join("arcana/assets/arcana_four_elements");
+        let mut audio = Audio::silent(Path::new("/nonexistent/horizon-test-assets"));
+        audio
+            .register_namespace("arcana_four_elements", &root)
+            .unwrap();
+        audio.engine.loaded = true;
+        audio.backend.live = true;
+        let stages = ["charge", "release", "impact", "sustain", "ultimate"];
+        for stage in stages {
+            let id = format!("arcana_four_elements:fire.{stage}");
+            assert!(audio.engine.registry.contains(&id));
+            audio.play(&id, Some([0.0; 3]), 0.85, 1.0);
+        }
+        let until = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        loop {
+            let cache = audio.backend.cache.lock().unwrap();
+            let complete = stages.iter().all(|stage| {
+                cache
+                    .entries
+                    .get(&format!("arcana_four_elements:sounds/fire/{stage}.ogg"))
+                    .is_some_and(|(samples, _)| {
+                        samples.as_ref().is_some_and(|(data, rate)| {
+                            *rate >= 16_000
+                                && !data.is_empty()
+                                && data.iter().all(|s| s.is_finite())
+                        })
+                    })
+            });
+            drop(cache);
+            if complete {
+                break;
+            }
+            assert!(
+                std::time::Instant::now() < until,
+                "original Arcana OGG files did not decode"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        audio.reload(Path::new("/nonexistent/horizon-test-assets"));
+        assert!(
+            audio
+                .engine
+                .registry
+                .contains("arcana_four_elements:fire.impact")
+        );
+        assert_eq!(
+            audio.backend.namespace_roots.get("arcana_four_elements"),
+            Some(&root)
+        );
+    }
 
     #[test]
     fn button_click_uses_vanilla_ui_parameters_without_advancing_world_random() {

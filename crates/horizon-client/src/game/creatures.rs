@@ -2211,6 +2211,8 @@ impl Game<'_> {
         };
         // The causing entity for the death message.
         let owner = self.combat.projectile_owner.take();
+        #[cfg(feature = "arcana")]
+        self.arcana_reflect_mob(attacker.or(owner), damage_type);
         if let Some(a) = attacker.or(owner) {
             self.note_attacker(damage_type, a);
         }

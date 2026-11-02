@@ -11,6 +11,134 @@ use crate::mesher::Vertex;
 use horizon_core::geometry::trig::Mth;
 use std::f32::consts::PI;
 
+#[cfg(all(test, feature = "arcana"))]
+mod arcana_hand_tests {
+    use super::*;
+    use arcana_core::{
+        Catalog,
+        casting::{CastEvent, Phase},
+    };
+    use glam::{DVec3, Vec3};
+    use std::sync::Arc;
+
+    #[test]
+    fn palm_is_the_rendered_fingertip_for_every_spell_and_both_skin_widths() {
+        let data = MobData {
+            states: vec![],
+            placements: Default::default(),
+            heightmaps: Default::default(),
+            animations: Default::default(),
+            villager_hats: Default::default(),
+            biome_tags: Default::default(),
+            entity_tags: Default::default(),
+            pois: Default::default(),
+        };
+        for left in [false, true] {
+            for slim in [false, true] {
+                let mut kind = super::super::sensor_scan_tests::kind();
+                let k = Arc::make_mut(&mut kind);
+                k.id = "minecraft:player".into();
+                k.anim = anim::Anim::Humanoid { zombie_arms: false };
+                let pose = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0];
+                let mut model = Part {
+                    name: "root".into(),
+                    pose,
+                    children: vec![],
+                    polygons: vec![],
+                };
+                for (name, at) in [
+                    ("body", [0.0, 0.0, 0.0]),
+                    ("head", [0.0, 0.0, 0.0]),
+                    ("right_arm", [-5.0, 2.0, 0.0]),
+                    ("left_arm", [5.0, 2.0, 0.0]),
+                    ("right_leg", [-1.9, 12.0, 0.0]),
+                    ("left_leg", [1.9, 12.0, 0.0]),
+                ] {
+                    let mut p = pose;
+                    p[..3].copy_from_slice(&at);
+                    let mut part = Part {
+                        name: name.into(),
+                        pose: p,
+                        children: vec![],
+                        polygons: vec![],
+                    };
+                    if name == if left { "left_arm" } else { "right_arm" } {
+                        let x = if left { 1.0 } else { -1.0 } * if slim { 0.5 } else { 1.0 };
+                        part.polygons.push(super::super::Polygon {
+                            normal: [0.0, 1.0, 0.0],
+                            vertices: [
+                                [x - 1.0, 10.0, -2.0, 0.0, 0.0],
+                                [x + 1.0, 10.0, -2.0, 1.0, 0.0],
+                                [x + 1.0, 10.0, 2.0, 1.0, 1.0],
+                                [x - 1.0, 10.0, 2.0, 0.0, 1.0],
+                            ],
+                        });
+                    }
+                    model.children.push(part);
+                }
+                k.model = Arc::new(model);
+                let mut m = Mob::new(
+                    1,
+                    kind,
+                    horizon_core::geometry::Vec3::new(20_000_000.0, 75.0, -500.0),
+                    37.0,
+                );
+                m.slim = slim;
+                m.on_ground = true;
+                m.head_pitch = -48.0;
+                m.previous_head_pitch = -48.0;
+                m.extra.main_hand_left = left;
+                m.extra.crouching = true;
+                m.extra.model_scale = 1.4;
+                let camera = DVec3::new(m.position.x, m.position.y, m.position.z);
+                for spell in Catalog::bundled().unwrap().spells() {
+                    for age in [
+                        2,
+                        spell.cast_time,
+                        spell.cast_time + spell.channel_ticks() + spell.recovery_ticks().max(2) / 2,
+                    ] {
+                        m.extra.cast_animation =
+                            Some(super::super::cast_animation::Playback::at_tick(CastEvent {
+                                spell_id: spell.id.clone(),
+                                cast_id: 1,
+                                start_tick: 0,
+                                server_tick: age.into(),
+                                phase: Phase::Release,
+                            }));
+                        let mut poses = Poses::new(&m.kind.model);
+                        anim::setup(&m, &anim::state(&m, 1.0), &mut poses, &data.animations);
+                        let mut vertices = vec![];
+                        draw(
+                            &m.kind.model,
+                            base_transform(&m, 1.0, camera),
+                            &poses,
+                            [0.0, 0.0, 1.0, 1.0],
+                            0xffff_ffff,
+                            0,
+                            0,
+                            &mut vertices,
+                        );
+                        let mut corners: Vec<Vec3> = vec![];
+                        for v in vertices.iter().map(|v| Vec3::from_array(v.pos)) {
+                            if !corners.iter().any(|c| c.distance(v) < 1e-6) {
+                                corners.push(v);
+                            }
+                        }
+                        assert_eq!(corners.len(), 4);
+                        let centre = corners.into_iter().sum::<Vec3>() / 4.0;
+                        let palm = player_palm(&m, 1.0, camera, &data, left).unwrap();
+                        assert!(
+                            (centre - palm).length() < 2e-6,
+                            "{} left={left} slim={slim} age={age}",
+                            spell.id
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// A texture lookup into the shared atlas (name without namespace -> uv rect).
 pub type Atlas<'a> = &'a dyn Fn(&str) -> Option<[f32; 4]>;
 
@@ -900,7 +1028,23 @@ pub fn base_transform(m: &Mob, alpha: f32, camera: glam::DVec3) -> glam::Mat4 {
 /// `base_transform` from a pose of the entity's origin (`EntityRenderDispatcher.submit`
 /// under a pose stack, as `SpawnerRenderer` draws the mob inside a spawner).
 pub fn base_transform_at(m: &Mob, alpha: f32, origin: glam::Mat4) -> glam::Mat4 {
+    #[cfg(feature = "arcana")]
+    let origin = if avatar(m) && m.extra.crouching {
+        // AvatarRenderer.getRenderOffset: physical position stays at the feet;
+        // every observer applies the same scaled visual crouch offset.
+        let scale = if m.extra.model_scale > 0.0 {
+            m.extra.model_scale
+        } else {
+            1.0
+        };
+        origin * glam::Mat4::from_translation(glam::Vec3::new(0.0, -0.125 * scale, 0.0))
+    } else {
+        origin
+    };
+    #[cfg(not(feature = "arcana"))]
     let mut body = m.previous_body_yaw + wrap(m.body_yaw - m.previous_body_yaw) * alpha;
+    #[cfg(feature = "arcana")]
+    let mut body = super::cast_animation::body_yaw(m, alpha);
     if shaking(m) {
         // LivingEntityRenderer.setupRotations: a rapid wobble.
         let ticks = (m.age as f32 + alpha).floor();
@@ -1625,6 +1769,30 @@ pub fn part_transform(
     let mut poses = Poses::new(&model);
     anim::setup(m, &s, &mut poses, &data.animations);
     part_matrix(&model, base, &poses, part, 0.0)
+}
+/// Actual fingertip centre after native model scale, waist rotation and elbow
+/// skinning. This CPU path is also used by the authoritative Arcana server.
+#[cfg(feature = "arcana")]
+pub fn player_palm(
+    m: &Mob,
+    alpha: f32,
+    camera: glam::DVec3,
+    data: &MobData,
+    left: bool,
+) -> Option<glam::Vec3> {
+    let arm = if left { "left_arm" } else { "right_arm" };
+    let model = m.kind.layer(&body(m).0).unwrap_or(&m.kind.model);
+    let mut poses = Poses::new(model);
+    anim::setup(m, &anim::state(m, alpha), &mut poses, &data.animations);
+    let matrix = part_matrix(model, base_transform(m, alpha, camera), &poses, arm, 0.0)?;
+    // Wide arms have their centre one pixel outside the shoulder pivot;
+    // slim arms use the half-pixel correction of PlayerModel.translateToHand.
+    let x = if left { 1.0 } else { -1.0 } * if m.slim { 0.5 } else { 1.0 };
+    let mut point = glam::Vec3::new(x, 10.0, 0.0);
+    if let Some(bend) = poses.bends.get(arm) {
+        point = bend.transform(point);
+    }
+    Some(matrix.transform_point3(point / 16.0))
 }
 /// `FoxHeldItemLayer`: the item sits at the head's position under the render
 /// state's head roll, yaw and pitch (not the posed head's, which differ while

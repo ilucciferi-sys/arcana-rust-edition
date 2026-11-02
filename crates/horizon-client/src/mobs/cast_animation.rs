@@ -14,38 +14,53 @@ use std::{sync::OnceLock, time::Instant};
 #[derive(Clone, Debug)]
 pub struct Playback {
     pub event: CastEvent,
+    pub body_yaw: Option<f32>,
     received: Instant,
     stopped: Option<Instant>,
+    sampled: bool,
 }
 impl Playback {
     pub fn new(event: CastEvent) -> Self {
         let stopped = matches!(event.phase, Phase::Cancelled | Phase::Finished).then(Instant::now);
         Self {
             event,
+            body_yaw: None,
             received: Instant::now(),
             stopped,
+            sampled: false,
         }
     }
-    pub fn update(&mut self, event: CastEvent) {
+    /// A server/fixture sample stays on its simulation tick, without a render clock.
+    pub fn at_tick(event: CastEvent) -> Self {
+        Self {
+            sampled: true,
+            ..Self::new(event)
+        }
+    }
+    pub fn update(&mut self, event: CastEvent) -> bool {
         if event.start_tick < self.event.start_tick
             || event.start_tick == self.event.start_tick
                 && (event.cast_id < self.event.cast_id
                     || event.cast_id == self.event.cast_id
                         && (event.server_tick < self.event.server_tick || self.stopped.is_some()))
         {
-            return;
+            return false;
         }
         *self = Self::new(event);
+        true
     }
     pub fn age(&self) -> f32 {
         self.event.server_tick.saturating_sub(self.event.start_tick) as f32
-            + if self.stopped.is_some() {
+            + if self.stopped.is_some() || self.sampled {
                 0.0
             } else {
                 self.received.elapsed().as_secs_f32() * 20.0
             }
     }
     pub fn fade(&self) -> f32 {
+        if self.sampled {
+            return 1.0;
+        }
         self.stopped.map_or_else(
             || 1.0 - animation::smooth((self.received.elapsed().as_secs_f32() - 0.8) / 0.2),
             |at| 1.0 - animation::smooth(at.elapsed().as_secs_f32() * 5.0),
@@ -54,6 +69,21 @@ impl Playback {
     pub fn alive(&self) -> bool {
         self.fade() > 0.0
     }
+}
+/// The same server torso basis on the owner and late-joining observers. Blend
+/// back to native locomotion when a cast stops or its heartbeat goes stale.
+pub fn body_yaw(m: &Mob, alpha: f32) -> f32 {
+    let native =
+        m.previous_body_yaw + super::living::wrap(m.body_yaw - m.previous_body_yaw) * alpha;
+    m.extra
+        .cast_animation
+        .as_ref()
+        .filter(|p| p.alive())
+        .and_then(|p| {
+            p.body_yaw
+                .map(|yaw| native + super::living::wrap(yaw - native) * p.fade())
+        })
+        .unwrap_or(native)
 }
 fn catalog() -> &'static Catalog {
     static CATALOG: OnceLock<Catalog> = OnceLock::new();
@@ -306,6 +336,13 @@ mod tests {
             server_tick: tick,
             phase,
         }
+    }
+    #[test]
+    fn authoritative_sample_uses_simulation_time_without_heartbeat_expiry() {
+        let mut pose = Playback::at_tick(event(120, Phase::Release));
+        pose.received = Instant::now() - Duration::from_secs(10);
+        assert_eq!(pose.age(), 20.0);
+        assert_eq!(pose.fade(), 1.0);
     }
     #[test]
     fn cancelled_pose_cannot_be_revived_by_reordered_heartbeat() {

@@ -12038,7 +12038,7 @@ impl Game<'_> {
         };
         #[cfg(feature = "arcana")]
         {
-            let effect = self.arcana_lance(camera);
+            let effect = self.arcana_lance(camera, alpha as f32);
             if let Some(renderer) = &mut self.renderer {
                 renderer.set_energy_lance(effect);
             }
@@ -12251,7 +12251,7 @@ impl Game<'_> {
         let mut additive = Vec::new();
         #[cfg(feature = "arcana")]
         if !title {
-            self.arcana_starter_geometry(camera, &mut entities, &mut additive);
+            self.arcana_starter_geometry(camera, alpha as f32, &mut entities, &mut additive);
             self.arcana_school_geometry(camera, alpha as f32, &mut entities, &mut additive);
             self.arcana_ritual_geometry(camera, &mut entities, &mut additive);
         }

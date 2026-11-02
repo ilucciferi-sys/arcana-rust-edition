@@ -2112,7 +2112,12 @@ impl Game<'_> {
         for g in host.hub.guests.iter().filter(|g| g.placed) {
             let at = Vec3::new(
                 g.position[0],
-                g.position[1] - if g.sneaking { 0.125 } else { 0.0 },
+                g.position[1]
+                    - if g.sneaking && !cfg!(feature = "arcana") {
+                        0.125
+                    } else {
+                        0.0
+                    },
                 g.position[2],
             );
             let m = host
@@ -2175,6 +2180,10 @@ impl Game<'_> {
                 .each_ref()
                 .map(|s| s.as_ref().map(|s| s.item.clone()));
             m.extra.crouching = g.sneaking;
+            #[cfg(feature = "arcana")]
+            {
+                m.on_ground = g.on_ground;
+            }
             m.extra.avatar_pose = g.pose();
             m.extra.sprinting = g.sprinting;
             // Entity.DATA_POSE and the shared and living flags the others

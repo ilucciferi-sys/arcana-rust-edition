@@ -1662,13 +1662,14 @@ impl Hub {
         body: BodyFlags,
         living_flags: i8,
         bed: Option<[i32; 3]>,
-        skin: u8,
+        appearance: (u8, i32),
         health: f32,
         equipment: Vec<(u8, Option<horizon_protocol::item::Stack>)>,
         attributes: Vec<play::AttributeSnapshot>,
         effects: &[EffectInstance],
     ) -> EntityState {
         let (sneaking, sprinting, sleeping) = flags;
+        let (skin, main_hand) = appearance;
         let shared = shared_flags(sneaking, sprinting, &body);
         // Player.getDesiredPose (and updatePlayerPose's crawl): sleeping,
         // swimming, gliding, Riptide's spin, crouching.
@@ -1695,6 +1696,13 @@ impl Hub {
         // Always there: the trackers send the entries that changed, and an
         // item no longer in use is a change back to 0.
         meta.push((8, serializer::BYTE, Value::Byte(living_flags)));
+        // ServerPlayer.updateOptions writes Avatar.DATA_PLAYER_MAIN_HAND.
+        // Include right as well, so changing back from left resets observers.
+        meta.push((
+            15,
+            serializer::HUMANOID_ARM,
+            Value::Id(i32::from(main_hand != 0)),
+        ));
         // LivingEntity.SLEEPING_POS: the others draw the player lying in it,
         // a player paired later too.
         if let Some(bed) = bed.filter(|_| sleeping) {
@@ -1782,7 +1790,7 @@ impl Hub {
                 h.body,
                 h.living_flags,
                 h.bed,
-                0x7F,
+                (0x7F, 1),
                 h.health,
                 equipment,
                 h.attributes.clone(),
@@ -1816,7 +1824,7 @@ impl Hub {
                     guest_body(g),
                     g.living_flags,
                     g.bed,
-                    g.info.model_customisation,
+                    (g.info.model_customisation, g.info.main_hand),
                     g.health,
                     equipment,
                     g.motion

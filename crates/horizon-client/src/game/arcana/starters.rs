@@ -20,6 +20,10 @@ pub(super) enum VisualStage {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(super) struct StarterVisual {
     pub owner: u32,
+    #[serde(default)]
+    pub uuid: Option<[i32; 4]>,
+    #[serde(default)]
+    pub hand_clipped: bool,
     pub cast_id: u64,
     pub dimension: String,
     pub spell_id: String,
@@ -44,8 +48,11 @@ impl Game<'_> {
         age: u32,
         stage: VisualStage,
     ) {
+        let uuid = self.acting_player_uuid();
         self.arcana.starter_outbox.push(StarterVisual {
             owner: self.lan_acting.unwrap_or(0),
+            uuid: Some(uuid),
+            hand_clipped: self.arcana_hand_clipped(),
             cast_id,
             dimension: self.dim.id().into(),
             spell_id: spell_id.into(),
@@ -134,19 +141,33 @@ impl Game<'_> {
     pub(super) fn arcana_tick_starters(&mut self, actor: &mut Actor, tick: u64) {
         if let Some(event) = actor.caster.status(tick)
             && event.phase == Phase::Preparation
-            && event.spell_id != "solar_spear"
             && tick.is_multiple_of(2)
-            && let Some((at, direction)) = self.arcana_context()
+            && let Some((at, direction)) = self.arcana_context(Some(&event))
         {
-            self.arcana_starter_visual(
-                event.cast_id,
-                &event.spell_id,
-                at,
-                direction,
-                DVec3::ZERO,
-                (tick - event.start_tick) as u32,
-                VisualStage::Preparation,
-            );
+            if event.spell_id != "solar_spear" {
+                self.arcana_starter_visual(
+                    event.cast_id,
+                    &event.spell_id,
+                    at,
+                    direction,
+                    DVec3::ZERO,
+                    (tick - event.start_tick) as u32,
+                    VisualStage::Preparation,
+                );
+            } else {
+                // Refresh the clamped start as the arms turn during preparation.
+                self.arcana_emit(
+                    event,
+                    Some(SolarOutcome {
+                        caster: u64::from(self.lan_acting.unwrap_or(0)),
+                        start: at,
+                        end: at + direction * catalog().get("solar_spear").unwrap().range,
+                        impacted: false,
+                        xp_awarded: 0,
+                        beam_lifetime_ticks: 30,
+                    }),
+                );
+            }
         }
         let owner = self.acting_player_uuid();
         let caster = u64::from(self.lan_acting.unwrap_or(0));

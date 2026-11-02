@@ -75,6 +75,7 @@ impl Game<'_> {
     }
     pub(in crate::game) fn arcana_player_left(&mut self, uuid: u128, conn: u32, dimension: &str) {
         self.arcana.load_errors.remove(&uuid);
+        self.arcana.origins.remove(&super::owner_words(uuid));
         let Some(mut actor) = self.arcana.actors.remove(&uuid) else {
             return;
         };
@@ -92,6 +93,8 @@ impl Game<'_> {
             self.arcana.outbox.push(super::Wire {
                 owner: conn,
                 uuid: Some(super::owner_words(uuid)),
+                hand_clipped: false,
+                body_yaw: None,
                 dimension: dimension.into(),
                 event: arcana_core::network::ServerEvent {
                     protocol: arcana_core::network::PROTOCOL,
@@ -105,6 +108,8 @@ impl Game<'_> {
         actor.bolts.clear();
         for active in actor.school.effects.drain(..) {
             self.arcana.school.outbox.push(super::school::Visual {
+                uuid: Some(super::owner_words(uuid)),
+                hand_clipped: false,
                 owner: conn,
                 id: active.id,
                 dimension: dimension.into(),

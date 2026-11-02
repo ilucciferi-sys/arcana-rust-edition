@@ -343,6 +343,8 @@ impl Game<'_> {
             self.player_model = Some(Mob::new(0, kind, p.position, self.yaw));
         }
         let crouching = p.pose == Pose::Crouching;
+        #[cfg(feature = "arcana")]
+        let cast_body = (p.ground.on_ground, p.pose);
         let position = p.position;
         let (fall_flying, fly_ticks, velocity) = (p.fall_flying, p.fall_fly_ticks, p.velocity);
         let spinning = p.auto_spin_attack_ticks > 0;
@@ -389,7 +391,12 @@ impl Game<'_> {
         m.extra.model_scale = scale;
         let at = Vec3::new(
             position.x,
-            position.y - if crouching { 0.125 } else { 0.0 },
+            position.y
+                - if crouching && !cfg!(feature = "arcana") {
+                    0.125
+                } else {
+                    0.0
+                },
             position.z,
         );
         let (dx, dy, dz) = (
@@ -441,6 +448,11 @@ impl Game<'_> {
         m.extra.main_hand = main;
         m.extra.off_hand = off;
         m.extra.crouching = crouching;
+        #[cfg(feature = "arcana")]
+        {
+            m.on_ground = cast_body.0;
+            m.extra.avatar_pose = cast_body.1;
+        }
         m.extra.passenger = riding;
         m.velocity = velocity;
         m.extra.fall_flying = fall_flying;

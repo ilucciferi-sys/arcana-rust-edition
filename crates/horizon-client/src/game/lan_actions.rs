@@ -120,6 +120,8 @@ pub(super) struct GuestCommand {
 /// The game's own state while a guest's is swapped in (`enter_guest`), and
 /// the guest's records that live outside `Guest`.
 pub(super) struct GuestSwap {
+    #[cfg(feature = "arcana")]
+    arcana_body: Option<super::arcana::hand::Body>,
     conn: u32,
     i: usize,
     play: GuestPlay,
@@ -250,6 +252,8 @@ impl Game<'_> {
             return None;
         }
         let i = host.hub.guests.iter().position(|g| g.conn == conn)?;
+        #[cfg(feature = "arcana")]
+        let body = super::arcana::hand::Body::guest(host, conn);
         let fresh = host.hub.guests[i].motion.is_none();
         if fresh {
             let p = Vec3::new(
@@ -433,7 +437,11 @@ impl Game<'_> {
             self.apply_effect_status();
         }
         self.update_totem_ready();
+        #[cfg(feature = "arcana")]
+        let arcana_body = std::mem::replace(&mut self.arcana.acting_body, body);
         Some(GuestSwap {
+            #[cfg(feature = "arcana")]
+            arcana_body,
             conn,
             i,
             play,
@@ -495,6 +503,8 @@ impl Game<'_> {
         // A totem that saved the guest this turn (its hurt set it off).
         let totem = self.apply_totem();
         let GuestSwap {
+            #[cfg(feature = "arcana")]
+            arcana_body,
             conn,
             i,
             mut play,
@@ -587,6 +597,10 @@ impl Game<'_> {
             );
         }
         (self.lan_acting, self.lan_acting_name, self.lan_acting_uuid) = acting;
+        #[cfg(feature = "arcana")]
+        {
+            self.arcana.acting_body = arcana_body;
+        }
         play.death_cause = std::mem::replace(&mut self.ui.death_cause, death_cause);
         // An ender chest the guest opened: the menu shows their inventory
         // itself (lan_open_container), not a stand-in block entity.

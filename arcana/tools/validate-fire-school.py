@@ -23,7 +23,7 @@ NO_WINDOW = 0x08000000 if os.name == 'nt' else 0
 
 
 class Game:
-    def __init__(self, root, binary, server=None, resume=False, fire_config=None):
+    def __init__(self, root, binary, server=None, resume=False, fire_config=None, player_name=None):
         self.root, self.binary = root, binary
         root.mkdir(parents=True, exist_ok=resume)
         env = os.environ.copy()
@@ -51,7 +51,7 @@ class Game:
                 '--world', 'ArcanaFireSchool', '--creative', '--test-terrain',
                 '--render-distance', '6', '--width', '1280', '--height', '720',
                 '--offscreen', '--control', '--control-socket', str(self.endpoint),
-                '--name', 'ArcanaWitness' if server else 'ArcanaMage']
+                '--name', player_name or ('ArcanaWitness' if server else 'ArcanaMage')]
         if server:
             args += ['--server', server]
         self.log = (root / 'session.log').open('ab' if resume else 'wb')

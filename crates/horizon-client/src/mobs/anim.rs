@@ -190,7 +190,10 @@ pub struct State {
     pub partial: f32,
 }
 pub fn state(m: &Mob, alpha: f32) -> State {
+    #[cfg(not(feature = "arcana"))]
     let body = m.previous_body_yaw + wrap(m.body_yaw - m.previous_body_yaw) * alpha;
+    #[cfg(feature = "arcana")]
+    let body = super::cast_animation::body_yaw(m, alpha);
     let head = m.previous_head_yaw + wrap(m.head_yaw - m.previous_head_yaw) * alpha;
     let mut swing = m.anim.attack_anim - m.anim.attack_anim_o;
     if swing < 0.0 {

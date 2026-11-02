@@ -3,7 +3,12 @@ use super::*;
 use horizon_client::mobs::{self, cast_animation::Playback};
 
 impl Game<'_> {
-    pub(super) fn arcana_pose_event(&mut self, owner: Option<[i32; 4]>, cast: &CastEvent) {
+    pub(super) fn arcana_pose_event(
+        &mut self,
+        owner: Option<[i32; 4]>,
+        cast: &CastEvent,
+        body_yaw: Option<f32>,
+    ) {
         let Some(owner) = owner else {
             return;
         };
@@ -14,11 +19,15 @@ impl Game<'_> {
             return;
         }
         if let Some(pose) = self.arcana.poses.get_mut(&owner) {
-            pose.update(cast.clone());
+            if pose.update(cast.clone()) {
+                pose.body_yaw = body_yaw;
+            }
         } else if !matches!(cast.phase, Phase::Cancelled | Phase::Finished)
             && self.arcana.poses.len() < 256
         {
-            self.arcana.poses.insert(owner, Playback::new(cast.clone()));
+            let mut pose = Playback::new(cast.clone());
+            pose.body_yaw = body_yaw;
+            self.arcana.poses.insert(owner, pose);
         }
     }
     pub(super) fn arcana_pose_tick(&mut self) {
@@ -67,9 +76,12 @@ impl Game<'_> {
             let bones: HashMap<_,_> = ["body","head","right_arm","left_arm","right_leg","left_leg"]
                 .into_iter().map(|name| (name,*poses.get(name))).collect();
             let bends: HashMap<_,_> = poses.bends.iter().map(|(name,b)| (name,b.angle)).collect();
+            let position = core(m.position);
+            let palm = mobs::render::player_palm(m,1.0,position,self.res.mob_data(),m.main_arm_left())
+                .map(|p| position + p.as_dvec3());
             Some(serde_json::json!({"entity":m.id,"own":self.player_model.as_ref().is_some_and(|own| std::ptr::eq(m,own)),
                 "spell":playback.event.spell_id,"cast_id":playback.event.cast_id,"phase":playback.event.phase,
-                "age":playback.age(),"fade":playback.fade(),"bones":bones,"bends":bends}))
+                "age":playback.age(),"fade":playback.fade(),"bones":bones,"bends":bends,"palm":palm,"left":m.main_arm_left(),"slim":m.slim}))
         }).collect()
     }
     pub(in crate::game) fn arcana_cast_arms(

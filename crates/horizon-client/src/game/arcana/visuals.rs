@@ -264,6 +264,7 @@ impl Game<'_> {
     pub(in crate::game) fn arcana_starter_geometry(
         &self,
         camera: DVec3,
+        alpha: f32,
         solid: &mut Vec<Vertex>,
         glow: &mut Vec<Vertex>,
     ) {
@@ -305,6 +306,12 @@ impl Game<'_> {
                 } else {
                     Vec3::ZERO
                 };
+            let at = if m.stage == VisualStage::Preparation && !m.hand_clipped {
+                self.arcana_palm(m.uuid, &m.spell_id, m.cast_id, alpha, camera)
+                    .unwrap_or(at)
+            } else {
+                at
+            };
             let dir = m.direction.as_vec3().normalize_or_zero();
             let up = if dir.y.abs() > 0.95 { Vec3::X } else { Vec3::Y };
             let u = dir.cross(up).normalize_or_zero();

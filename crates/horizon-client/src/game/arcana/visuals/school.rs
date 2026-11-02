@@ -73,6 +73,11 @@ impl Game<'_> {
             let time = age / 20.0;
             let fade = ((e.life as f32 - age) / 16.0).clamp(0.0, 1.0) * (age / 8.0).clamp(0.0, 1.0);
             let mut at = (e.position - camera).as_vec3();
+            if e.spell_id == "inferno_beam" && !v.visual.hand_clipped {
+                at = self
+                    .arcana_palm(v.visual.uuid, &e.spell_id, v.visual.id, alpha, camera)
+                    .unwrap_or(at);
+            }
             let dir = e.direction.as_vec3();
             let side = dir.cross(Vec3::Y).normalize_or_zero();
             match e.spell_id.as_str() {

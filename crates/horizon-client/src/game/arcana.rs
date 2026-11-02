@@ -3,6 +3,7 @@
 mod animation;
 mod fire;
 mod forms;
+pub(super) mod hand;
 mod movement;
 mod persistence;
 mod pvp;
@@ -68,11 +69,17 @@ struct Wire {
     owner: u32,
     #[serde(default)]
     uuid: Option<[i32; 4]>,
+    #[serde(default)]
+    hand_clipped: bool,
+    #[serde(default)]
+    body_yaw: Option<f32>,
     dimension: String,
     event: ServerEvent,
 }
 struct Playback {
     owner: u32,
+    uuid: Option<[i32; 4]>,
+    hand_clipped: bool,
     cast_id: u64,
     dimension: String,
     solar: SolarOutcome,
@@ -99,6 +106,8 @@ pub(super) struct Runtime {
     poses: HashMap<[i32; 4], horizon_client::mobs::cast_animation::Playback>,
     pose_dimension: String,
     pose_history: arcana_core::animation::CastHistory,
+    pub(super) acting_body: Option<hand::Body>,
+    origins: HashMap<[i32; 4], hand::Origin>,
 }
 impl Default for Runtime {
     fn default() -> Self {
@@ -125,6 +134,8 @@ impl Default for Runtime {
             poses: HashMap::new(),
             pose_dimension: String::new(),
             pose_history: arcana_core::animation::CastHistory::default(),
+            acting_body: None,
+            origins: HashMap::new(),
         }
     }
 }
@@ -214,16 +225,6 @@ impl Game<'_> {
             self.arcana_save_actor(uuid);
         }
     }
-    fn arcana_context(&self) -> Option<(DVec3, DVec3)> {
-        let (eye, direction) = self.aim()?;
-        let direction = DVec3::from_array(direction);
-        // Stable server origin; exact alignment with the animated palm is pending.
-        let right = direction.cross(DVec3::Y).normalize_or_zero();
-        Some((
-            DVec3::from_array(eye) + direction * 0.55 + right * 0.3 - DVec3::Y * 0.3,
-            direction,
-        ))
-    }
     fn arcana_available(&self) -> bool {
         self.player
             .as_ref()
@@ -268,7 +269,9 @@ impl Game<'_> {
                     self.arcana.actors.insert(uuid, actor);
                     return;
                 }
-                let context = self.arcana_context();
+                let context = self
+                    .aim()
+                    .map(|(eye, direction)| (DVec3::from_array(eye), DVec3::from_array(direction)));
                 let permission = CastPermission {
                     available: self.arcana_available(),
                     ritual_active: actor.ritual.active().is_some(),
@@ -282,7 +285,7 @@ impl Game<'_> {
                 {
                     Ok(event) => {
                         actor.dimension = self.dim.id().into();
-                        if let Some((start, direction)) = context {
+                        if let Some((start, direction)) = self.arcana_context(Some(&event)) {
                             if spell_id != "solar_spear" {
                                 self.arcana_emit(event.clone(), None);
                                 self.arcana_starter_visual(
@@ -405,7 +408,7 @@ impl Game<'_> {
                     checkpoint = true;
                     let mut outcome = None;
                     if event.phase == Phase::Release
-                        && let Some((start, direction)) = self.arcana_context()
+                        && let Some((start, direction)) = self.arcana_context(Some(&event))
                     {
                         if self.arcana_release_school(&mut actor, &event)
                             || self.arcana_release_fire(&mut actor, &event, direction)
@@ -559,7 +562,8 @@ impl Game<'_> {
                 serde_json::json!({"projectiles":game.arcana.actors.values().map(|a|a.bolts.len()).sum::<usize>(),
                     "projectile_states":game.arcana.actors.values().flat_map(|a|a.bolts.iter().map(|b|&b.bolt)).collect::<Vec<_>>(),
                     "effects":game.arcana.actors.values().map(|a|a.school.effects.len()).sum::<usize>(),
-                    "fires":game.arcana.school.terrain.values().map(|s|s.fire.len()).sum::<usize>()})
+                    "fires":game.arcana.school.terrain.values().map(|s|s.fire.len()).sum::<usize>(),
+                    "origins":game.arcana.origins.values().collect::<Vec<_>>()})
             })
         });
         let flight = self.player.as_ref().map(
@@ -704,6 +708,8 @@ impl Game<'_> {
         self.arcana.outbox.push(Wire {
             owner: self.lan_acting.unwrap_or(0),
             uuid: Some(uuid),
+            hand_clipped: self.arcana_hand_clipped(),
+            body_yaw: self.arcana.acting_body.map(|b| b.yaw),
             dimension: self.dim.id().into(),
             event: ServerEvent {
                 protocol: PROTOCOL,
@@ -792,7 +798,7 @@ impl Game<'_> {
                 self.arcana.poses.clear();
                 self.arcana.pose_dimension = wire.dimension.clone();
             }
-            self.arcana_pose_event(wire.uuid, cast);
+            self.arcana_pose_event(wire.uuid, cast, wire.body_yaw.filter(|y| y.is_finite()));
         }
         if cast.phase == Phase::Cancelled {
             self.arcana
@@ -822,6 +828,8 @@ impl Game<'_> {
             }
             self.arcana.playback = Some(Playback {
                 owner: wire.owner,
+                uuid: wire.uuid,
+                hand_clipped: wire.hand_clipped,
                 cast_id: cast.cast_id,
                 dimension: wire.dimension,
                 solar,
@@ -830,7 +838,11 @@ impl Game<'_> {
             });
         }
     }
-    pub(super) fn arcana_lance(&self, camera: glam::DVec3) -> Option<horizon_vfx::Lance> {
+    pub(super) fn arcana_lance(
+        &self,
+        camera: glam::DVec3,
+        alpha: f32,
+    ) -> Option<horizon_vfx::Lance> {
         let p = self.arcana.playback.as_ref()?;
         if p.dimension != self.dim.id() {
             return None;
@@ -842,7 +854,12 @@ impl Game<'_> {
         };
         let reduced = std::env::var_os("ARCANA_REDUCED_EFFECTS").is_some();
         let effect = horizon_vfx::Lance {
-            start: (p.solar.start - camera).as_vec3(),
+            start: if !p.hand_clipped && p.age + p.received.elapsed().as_secs_f32() < 3.5 {
+                self.arcana_palm(p.uuid, "solar_spear", p.cast_id, alpha, camera)
+                    .unwrap_or((p.solar.start - camera).as_vec3())
+            } else {
+                (p.solar.start - camera).as_vec3()
+            },
             end: (p.solar.end - camera).as_vec3(),
             age_seconds: p.age + p.received.elapsed().as_secs_f32(),
             preparation_seconds: 3.5,

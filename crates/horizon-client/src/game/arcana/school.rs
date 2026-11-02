@@ -55,6 +55,10 @@ pub(super) struct Body {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(super) struct Visual {
     pub owner: u32,
+    #[serde(default)]
+    pub uuid: Option<[i32; 4]>,
+    #[serde(default)]
+    pub hand_clipped: bool,
     pub id: u64,
     pub dimension: String,
     pub effect: Effect,
@@ -144,9 +148,22 @@ impl Game<'_> {
             .as_ref()
             .map(|l| l.flying)
     }
-    fn arcana_school_owner(&self, actor: &super::Actor, tick: u64) -> Option<Owner> {
+    fn arcana_school_owner(&mut self, actor: &super::Actor, tick: u64) -> Option<Owner> {
+        let event = actor.caster.status(tick);
+        // Only BEAM reads Owner.hand; long-lived forms/fields need no posed rig.
+        let (hand, direction) = if event.as_ref().is_some_and(|e| e.spell_id == "inferno_beam")
+            || actor
+                .school
+                .effects
+                .iter()
+                .any(|e| e.effect.spell_id == "inferno_beam")
+        {
+            self.arcana_context(event.as_ref())?
+        } else {
+            let (eye, direction) = self.aim()?;
+            (DVec3::from_array(eye), DVec3::from_array(direction))
+        };
         let p = self.player.as_ref()?;
-        let (hand, direction) = self.arcana_context()?;
         Some(Owner {
             id: u64::from(self.lan_acting.unwrap_or(0)),
             position: core(p.position),
@@ -172,6 +189,8 @@ impl Game<'_> {
         });
         self.arcana.school.outbox.push(Visual {
             owner: self.lan_acting.unwrap_or(0),
+            uuid: Some(uuid),
+            hand_clipped: self.arcana_hand_clipped(),
             id,
             dimension: self.dim.id().into(),
             effect: effect.clone(),
@@ -461,7 +480,7 @@ impl Game<'_> {
                 let Some(eye) = self.eye_position().map(DVec3::from_array) else {
                     return;
                 };
-                let Some((_, direction)) = self.arcana_context() else {
+                let Some((_, direction)) = self.arcana_context(None) else {
                     return;
                 };
                 if !actor.state.spend_mana(6.0) {
@@ -476,7 +495,7 @@ impl Game<'_> {
                 }
             }
             Action::Secondary => {
-                if let Some((_, direction)) = self.arcana_context() {
+                if let Some((_, direction)) = self.arcana_context(None) {
                     for active in &mut actor.school.effects {
                         if !actor
                             .school

@@ -1,4 +1,5 @@
 #![forbid(unsafe_code)]
+pub mod preparation;
 use glam::{Mat4, Vec3};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

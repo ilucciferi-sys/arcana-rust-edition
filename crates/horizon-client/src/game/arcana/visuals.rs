@@ -1,5 +1,6 @@
 //! Small spell compositions use Horizon's existing geometry/material batches.
 //! Solar's high-density effects keep using the separate GPU VFX extension.
+mod charge;
 mod fire;
 mod fireball;
 mod phoenix;
@@ -131,11 +132,16 @@ impl Game<'_> {
             let progress = ((m.rite.progress as f32 + elapsed.min(0.5) * 20.0)
                 / m.rite.duration as f32)
                 .min(1.0);
-            let fade = if m.finished {
+            let fade = if m.cancelled {
+                (1.0 - elapsed / 0.2).max(0.0)
+            } else if m.finished {
                 (1.0 - elapsed / 1.5).max(0.0)
             } else {
                 (progress * 5.0).min(1.0)
             };
+            if fade <= 0.0 {
+                continue;
+            }
             let rise = ((progress - 0.2) / 0.8).clamp(0.0, 1.0);
             let time = (m.rite.progress as f32 / 20.0 + elapsed) * 1.4;
             let alpha = (110.0 * fade * if reduced { 0.5 } else { 1.0 }) as u8;
@@ -147,6 +153,23 @@ impl Game<'_> {
             };
             let color = rgba(rgb[0], rgb[1], rgb[2], alpha);
             for (radius, sign) in [(2.1, 1.0), (1.25, -1.0)] {
+                if m.rite.school == School::Fire
+                    && let Some(sigil) = self
+                        .gui
+                        .atlas
+                        .sprites
+                        .get("arcana_four_elements:effect/sigil_fire")
+                {
+                    let a = time * 0.10 * sign;
+                    let x = Vec3::new(a.cos(), 0.0, a.sin()) * radius;
+                    let z = Vec3::new(-a.sin(), 0.0, a.cos()) * radius;
+                    quad(
+                        glow,
+                        [at - x - z, at + x - z, at + x + z, at - x + z],
+                        *sigil,
+                        rgba(255, 112, 40, alpha),
+                    );
+                }
                 ring(
                     glow,
                     at,
@@ -287,6 +310,10 @@ impl Game<'_> {
             .unwrap_or(texture);
         for view in self.arcana.starter_views.values() {
             let m = &view.message;
+            // The Fire charge is rebuilt from the public cast clock, including late join.
+            if m.stage == VisualStage::Preparation && charge::is_fire(&m.spell_id) {
+                continue;
+            }
             let elapsed = view.received.elapsed().as_secs_f32();
             let lifetime = match m.stage {
                 VisualStage::Flight => 0.35,

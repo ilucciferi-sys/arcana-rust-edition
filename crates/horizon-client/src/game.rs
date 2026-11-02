@@ -12251,6 +12251,7 @@ impl Game<'_> {
         let mut additive = Vec::new();
         #[cfg(feature = "arcana")]
         if !title {
+            self.arcana_charge_geometry(camera, alpha as f32, &mut additive);
             self.arcana_starter_geometry(camera, alpha as f32, &mut entities, &mut additive);
             self.arcana_school_geometry(camera, alpha as f32, &mut entities, &mut additive);
             self.arcana_ritual_geometry(camera, &mut entities, &mut additive);

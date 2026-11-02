@@ -1629,6 +1629,8 @@ impl Game<'_> {
         self.turn_remote_projectile(id, rotation);
     }
     fn remove_entity(&mut self, id: i32) {
+        #[cfg(feature = "arcana")]
+        self.arcana_forget_pose(self.persist.uuids.get(&(id as u32)).copied());
         // Entity.setRemoved detaches every passenger, even when no empty
         // SetPassengers packet preceded the vehicle's removal. Otherwise
         // mobs and other players keep their passenger pose after it is gone.
@@ -6337,6 +6339,8 @@ impl Game<'_> {
         }));
     }
     pub(super) fn remote_respawn(&mut self) {
+        #[cfg(feature = "arcana")]
+        self.arcana_respawn_pose();
         self.send(S::ClientCommand(play::ClientCommand { action: 0 }));
     }
 

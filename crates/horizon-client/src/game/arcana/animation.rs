@@ -3,6 +3,22 @@ use super::*;
 use horizon_client::mobs::{self, cast_animation::Playback};
 
 impl Game<'_> {
+    pub(in crate::game) fn arcana_forget_pose(&mut self, uuid: Option<[i32; 4]>) {
+        if let Some(uuid) = uuid {
+            self.arcana.poses.remove(&uuid);
+            if self
+                .remote
+                .as_ref()
+                .is_some_and(|r| owner_words(r.profile()) == uuid)
+                && let Some(m) = self.player_model.as_mut()
+            {
+                m.extra.cast_animation = None;
+            }
+        }
+    }
+    pub(in crate::game) fn arcana_respawn_pose(&mut self) {
+        self.arcana_forget_pose(self.remote.as_ref().map(|r| owner_words(r.profile())));
+    }
     pub(super) fn arcana_pose_event(
         &mut self,
         owner: Option<[i32; 4]>,
@@ -135,19 +151,44 @@ impl Game<'_> {
                 .get(name)
                 .map(|r| [r.u0, r.v0, r.u1, r.v1])
         };
-        if mobs::fire_form::render(m, model, base, &poses, &lookup, true, out) {
-            return true;
+        let start = out.len();
+        if !mobs::fire_form::render(m, model, base, &poses, &lookup, true, out) {
+            mobs::render::draw(
+                model,
+                base,
+                &poses,
+                [uv.u0, uv.v0, uv.u1, uv.v1],
+                0xFFFF_FFFF,
+                light,
+                0,
+                out,
+            );
         }
-        mobs::render::draw(
-            model,
-            base,
-            &poses,
-            [uv.u0, uv.v0, uv.u1, uv.v1],
-            0xFFFF_FFFF,
-            light,
-            0,
-            out,
-        );
+        // A world-space casting pose can put a forearm through the eye. Clip
+        // this view-model pass only; the world rig and palm origin stay exact.
+        let raw = out.split_off(start);
+        let (sy, cy) = self.yaw.to_radians().sin_cos();
+        let (sp, cp) = self.pitch.to_radians().sin_cos();
+        let forward = glam::Vec3::new(-sy * cp, -sp, cy * cp);
+        for face in raw.as_chunks::<4>().0 {
+            let points = std::array::from_fn(|i| {
+                [
+                    face[i].pos[0],
+                    face[i].pos[1],
+                    face[i].pos[2],
+                    face[i].uv[0],
+                    face[i].uv[1],
+                ]
+            });
+            horizon_vfx::preparation::clip_near_eye(points, forward, 0.28, |polygon| {
+                for p in polygon {
+                    let mut vertex = face[0];
+                    vertex.pos = p[..3].try_into().unwrap();
+                    vertex.uv = p[3..].try_into().unwrap();
+                    out.push(vertex);
+                }
+            });
+        }
         true
     }
 }

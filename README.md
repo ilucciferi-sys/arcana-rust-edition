@@ -11,6 +11,8 @@
 получили позы полёта и огненные руки от первого лица.
 Выпуск снарядов и луча привязан к ладони с учётом анимации и ведущей руки;
 сервер проверяет препятствия перед точкой старта.
+Подготовка Огня получила авторские печати и пламя, разные композиции
+14 кастов и круги высшей магии.
 [Возможности и ограничения анимаций](https://github.com/ilucciferi-sys/arcana-rust-edition/blob/codex/arcana-rust/arcana/docs/ANIMATIONS.md).
 [Дорожная карта](https://github.com/ilucciferi-sys/arcana-rust-edition/blob/codex/arcana-rust/arcana/docs/ROADMAP.md) · [Техническая документация](https://github.com/ilucciferi-sys/arcana-rust-edition/blob/codex/arcana-rust/arcana/README.md) · [Оригинальный Java-мод Arcana](https://github.com/ilucciferi-sys/arcana-four-elements)
 

@@ -9,27 +9,13 @@ pub(super) fn draw(
     elapsed: f32,
     time: f32,
     texture: Rect,
-    solid: &mut Vec<Vertex>,
     glow: &mut Vec<Vertex>,
 ) -> bool {
-    if !matches!(
-        m.spell_id.as_str(),
-        "fireball" | "fireball_empowered" | "meteor_rain"
-    ) {
+    if !matches!(m.spell_id.as_str(), "fireball" | "fireball_empowered") {
         return false;
     }
     let begin = glow.len();
     let result = draw_body(m, at, elapsed, time, texture, glow);
-    if m.spell_id == "meteor_rain" && m.stage == VisualStage::Flight {
-        cube(
-            solid,
-            at,
-            0.46,
-            Quat::from_euler(glam::EulerRot::XYZ, time * 2.1, time * 1.7, time),
-            texture,
-            rgba(68, 31, 12, 255),
-        );
-    }
     let scale = if m.stage == VisualStage::FireballImpact {
         if m.spell_id == "fireball" {
             1.0
@@ -38,7 +24,6 @@ pub(super) fn draw(
         }
     } else {
         match m.spell_id.as_str() {
-            "meteor_rain" => 8.0 / 2.8,
             "fireball_empowered" => 1.5,
             _ => 1.0,
         }

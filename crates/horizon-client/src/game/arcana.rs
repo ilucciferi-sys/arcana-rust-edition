@@ -572,6 +572,7 @@ impl Game<'_> {
         serde_json::json!({"snapshot":self.arcana.snapshot,"blocked_players":self.arcana.load_errors.len(),"ritual_visuals":self.arcana.ritual_views.len(),"spell_visuals":self.arcana.starter_views.values().map(|v| &v.message).collect::<Vec<_>>(),
             "server_projectiles":server_state.as_ref().map(|s|&s["projectiles"]),"server_fire":server_state,
             "fire_fields":self.arcana.school.views.values().map(|v|&v.visual).collect::<Vec<_>>(),"flight":flight,"cast_poses":self.arcana_pose_debug(),"body_forms":self.arcana_form_debug(),"preparations":self.arcana_charge_debug(),
+            "tempests":self.arcana_tempest_debug(),
             "owned_fire_cells":self.arcana.school.public_fire.get(self.dim.id()).map(|f|f.cells.len()).unwrap_or(0)})
     }
     pub(super) fn arcana_hud(&self, hud: &mut horizon_client::hud::HudBatch) {

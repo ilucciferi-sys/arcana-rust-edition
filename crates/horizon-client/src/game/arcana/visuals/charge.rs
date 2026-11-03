@@ -2,7 +2,7 @@
 use super::*;
 use horizon_vfx::{
     Quality,
-    preparation::{Anchors, Charge, Family, Mark, Material, View},
+    preparation::{Anchors, Charge, Family, Mark, View},
 };
 
 fn family(id: &str) -> Option<Family> {
@@ -147,20 +147,7 @@ impl Game<'_> {
                     material,
                     color,
                 } => {
-                    let name = match material {
-                        Material::Sigil => "arcana_four_elements:effect/sigil_fire",
-                        Material::Halo => "arcana_four_elements:effect/halo",
-                        Material::Flame(frame) => [
-                            "arcana_four_elements:effect/flame_0",
-                            "arcana_four_elements:effect/flame_1",
-                            "arcana_four_elements:effect/flame_2",
-                            "arcana_four_elements:effect/flame_3",
-                            "arcana_four_elements:effect/flame_4",
-                            "arcana_four_elements:effect/flame_5",
-                            "arcana_four_elements:effect/flame_6",
-                            "arcana_four_elements:effect/flame_7",
-                        ][frame as usize % 8],
-                    };
+                    let name = super::tempest::effect_name(material);
                     let texture = atlas.get(name);
                     if let Some(texture) = texture {
                         quad(

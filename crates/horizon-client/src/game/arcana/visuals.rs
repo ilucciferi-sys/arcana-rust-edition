@@ -5,6 +5,7 @@ mod fire;
 mod fireball;
 mod phoenix;
 mod school;
+mod tempest;
 use super::{Game, starters::VisualStage};
 use glam::{DVec3, Quat, Vec3};
 use horizon_client::{
@@ -310,6 +311,9 @@ impl Game<'_> {
             .unwrap_or(texture);
         for view in self.arcana.starter_views.values() {
             let m = &view.message;
+            if m.spell_id == "meteor_rain" {
+                continue; // Dedicated rock/wake/contact composition in tempest.
+            }
             // The Fire charge is rebuilt from the public cast clock, including late join.
             if m.stage == VisualStage::Preparation && charge::is_fire(&m.spell_id) {
                 continue;
@@ -347,7 +351,7 @@ impl Game<'_> {
             if fire::draw(m, at, elapsed, time, texture, glow) {
                 continue;
             }
-            if fireball::draw(m, at, elapsed, time, texture, solid, glow) {
+            if fireball::draw(m, at, elapsed, time, texture, glow) {
                 continue;
             }
             let color = match m.spell_id.as_str() {

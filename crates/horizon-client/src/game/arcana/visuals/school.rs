@@ -26,6 +26,7 @@ impl Game<'_> {
         solid: &mut Vec<Vertex>,
         glow: &mut Vec<Vertex>,
     ) {
+        self.arcana_tempest_geometry(camera, solid, glow);
         let Some(texture) = self.gui.atlas.sprites.get("block/white_concrete").copied() else {
             return;
         };
@@ -54,6 +55,9 @@ impl Game<'_> {
                 continue;
             }
             let e = &v.visual.effect;
+            if matches!(e.spell_id.as_str(), "fire_storm" | "meteor_rain") {
+                continue;
+            }
             let elapsed = v.received.elapsed().as_secs_f32();
             if elapsed > 1.0 {
                 continue;
@@ -276,85 +280,6 @@ impl Game<'_> {
                         gold(150.0 * fade),
                         time * 2.0,
                     );
-                }
-                "fire_storm" => {
-                    at += dir * 4.0 * elapsed.min(0.15);
-                    for arm in 0..detail {
-                        for level in 0..28 {
-                            let q = level as f32 / 28.0;
-                            let q2 = (level + 1) as f32 / 28.0;
-                            let point = |q: f32| {
-                                let a =
-                                    q * TAU * 2.0 - time * 5.0 + arm as f32 * TAU / detail as f32;
-                                let r = 0.65 + 7.0 * q.powf(1.2);
-                                at + Vec3::new(
-                                    (age * 0.025 + q * 3.8).sin() * 7.0 * 0.14 * q + a.cos() * r,
-                                    q * 14.0,
-                                    (age * 0.021 + q * 4.5).cos() * 7.0 * 0.11 * q + a.sin() * r,
-                                )
-                            };
-                            ribbon(
-                                solid,
-                                point(q),
-                                point(q2),
-                                0.06 + q * 0.08,
-                                texture,
-                                rgba(245, 68, 8, (130.0 * fade * intensity) as u8),
-                            );
-                            ribbon(
-                                glow,
-                                point(q),
-                                point(q2),
-                                0.09 + q * 0.08,
-                                texture,
-                                if arm % 2 == 0 {
-                                    amber(110.0 * fade)
-                                } else {
-                                    gold(85.0 * fade)
-                                },
-                            );
-                        }
-                    }
-                    ring(
-                        glow,
-                        at + Vec3::Y * 0.12,
-                        Vec3::X,
-                        Vec3::Z,
-                        2.0,
-                        0.03,
-                        texture,
-                        amber(110.0 * fade),
-                        time,
-                    );
-                }
-                "meteor_rain" => {
-                    let y = 14.0;
-                    let r = 56.0;
-                    for scale in [0.32, 0.65, 1.0] {
-                        ring(
-                            glow,
-                            at + Vec3::Y * y,
-                            Vec3::X,
-                            Vec3::Z,
-                            r * scale,
-                            0.06,
-                            texture,
-                            amber(55.0 * fade),
-                            time * 0.08,
-                        );
-                    }
-                    for i in 0..detail * 3 {
-                        let a = i as f32 * TAU / (detail * 3) as f32 + time * 0.15;
-                        flame(
-                            glow,
-                            at + Vec3::new(a.cos() * r, y, a.sin() * r),
-                            1.0,
-                            0.1,
-                            texture,
-                            gold(100.0 * fade),
-                            time + a,
-                        );
-                    }
                 }
                 "phoenix_form" => {
                     if e.stage == 2 {

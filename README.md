@@ -13,6 +13,8 @@
 сервер проверяет препятствия перед точкой старта.
 Подготовка Огня получила авторские печати и пламя, разные композиции
 14 кастов и круги высшей магии.
+Метеоры получили отдельные каменные ядра, огненные следы и удары;
+смерч — слоистую воронку с пламенем, искрами и каменными фрагментами.
 [Возможности и ограничения анимаций](https://github.com/ilucciferi-sys/arcana-rust-edition/blob/codex/arcana-rust/arcana/docs/ANIMATIONS.md).
 [Дорожная карта](https://github.com/ilucciferi-sys/arcana-rust-edition/blob/codex/arcana-rust/arcana/docs/ROADMAP.md) · [Техническая документация](https://github.com/ilucciferi-sys/arcana-rust-edition/blob/codex/arcana-rust/arcana/README.md) · [Оригинальный Java-мод Arcana](https://github.com/ilucciferi-sys/arcana-four-elements)
 
